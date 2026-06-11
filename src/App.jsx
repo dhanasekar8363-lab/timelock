@@ -6,6 +6,7 @@ import LockedCapsule from "./pages/LockedCapsule";
 import UnlockedCapsule from "./pages/UnlockedCapsule";
 import Login from "./pages/Login";
 import Profile from "./pages/Profile";
+import EditProfile from "./pages/EditProfile";
 import CapsuleDetail from "./pages/CapsuleDetail";
 import CapsulePage from "./pages/CapsulePage";
 import CapsuleViewer from "./pages/CapsuleViewer";
@@ -20,6 +21,10 @@ function App() {
         <Route path="/unlocked" element={<UnlockedCapsule />} />
         <Route path="/login" element={<Login />} />
         <Route path="/profile" element={<Profile />} />
+        <Route
+          path="/profile/edit"
+          element={<EditProfile />}
+        />
         {/* ID-based route moved to its own prefix so it doesn't shadow slug */}
         <Route path="/capsule/id/:id" element={<CapsuleDetail />} />
         {/* Slug-based shareable link — handles both locked and unlocked state */}

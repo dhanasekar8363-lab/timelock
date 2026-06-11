@@ -1,0 +1,101 @@
+.profile-page{
+  min-height:100vh;
+  background:#070b28;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  padding:20px;
+}
+
+.profile-card{
+  width:100%;
+  max-width:400px;
+
+  background:rgba(255,255,255,0.08);
+  backdrop-filter:blur(20px);
+
+  border:1px solid rgba(255,255,255,0.15);
+
+  border-radius:28px;
+
+  padding:28px;
+  text-align:center;
+
+  color:white;
+}
+
+.avatar{
+  width:110px;
+  height:110px;
+
+  object-fit:cover;
+
+  border-radius:50%;
+  border:4px solid #b45cff;
+
+  display:block;
+  margin:0 auto 15px auto;
+}
+
+.email{
+  opacity:.8;
+}
+
+.divider{
+  height:1px;
+  background:rgba(255,255,255,.15);
+  margin:24px 0;
+}
+
+.stats{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+}
+
+.stat-box{
+  flex:1;
+
+  background:rgba(255,255,255,.05);
+
+  border-radius:18px;
+  padding:16px 10px;
+}
+
+.emoji{
+  font-size:24px;
+}
+
+.stat-box h3{
+  margin:8px 0 4px;
+}
+
+.setting-btn,
+.logout-btn,
+.google-btn{
+  width:100%;
+  border:none;
+
+  padding:14px;
+  margin-top:12px;
+
+  border-radius:16px;
+
+  color:white;
+  font-size:16px;
+  font-weight:600;
+
+  cursor:pointer;
+}
+
+.setting-btn{
+  background:#6c4dff;
+}
+
+.logout-btn{
+  background:#ff4f81;
+}
+
+.google-btn{
+  background:#6c4dff;
+}

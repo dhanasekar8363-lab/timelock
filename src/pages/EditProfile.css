@@ -1,0 +1,113 @@
+.edit-profile-page{
+  min-height:100vh;
+  background:#070b28;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  padding:20px;
+}
+
+.edit-profile-card{
+  width:100%;
+  max-width:400px;
+
+  background:rgba(255,255,255,0.08);
+  backdrop-filter:blur(20px);
+
+  border:1px solid rgba(255,255,255,0.15);
+
+  border-radius:28px;
+
+  padding:30px;
+  color:white;
+}
+
+.edit-profile-card h2{
+  text-align:center;
+  margin-bottom:25px;
+}
+
+.avatar-preview{
+  width:100px;
+  height:100px;
+
+  margin:0 auto 20px;
+
+  border-radius:50%;
+
+  background:#8b5cf6;
+
+  display:flex;
+  align-items:center;
+  justify-content:center;
+
+  font-size:40px;
+  font-weight:bold;
+}
+
+.edit-profile-card label{
+  display:block;
+  margin-top:15px;
+  margin-bottom:8px;
+}
+
+.edit-profile-card input{
+  width:100%;
+  padding:14px;
+
+  border:none;
+  border-radius:14px;
+
+  background:rgba(255,255,255,0.08);
+  color:white;
+}
+
+.edit-profile-card textarea{
+  width:100%;
+  min-height:120px;
+
+  padding:14px;
+
+  border:none;
+  border-radius:14px;
+
+  background:rgba(255,255,255,0.08);
+
+  color:white;
+
+  resize:vertical;
+  box-sizing:border-box;
+}
+
+.avatar-upload-label{
+  display:block;
+  text-align:center;
+
+  margin-bottom:20px;
+
+  font-size:13px;
+  color:rgba(255,255,255,0.5);
+
+  cursor:pointer;
+  transition:color 0.2s;
+}
+
+.avatar-upload-label:hover{
+  color:#8b5cf6;
+}
+
+.save-btn{
+  width:100%;
+  margin-top:25px;
+
+  padding:14px;
+
+  border:none;
+  border-radius:16px;
+
+  background:#7c4dff;
+  color:white;
+
+  font-size:16px;
+  font-weight:600;
+}
