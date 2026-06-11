@@ -1,0 +1,479 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   LockedCapsule — TimeLock redesign
+   Palette:
+     --clr-navy      #0B0D2E
+     --clr-purple    #7C3AED
+     --clr-pink      #EC4899
+     --clr-amber     #F59E0B
+     --clr-glass     rgba(255,255,255,0.07)
+     --clr-border    rgba(168,85,247,0.22)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* ── Reset helpers ───────────────────────────── */
+.locked-page *,
+.locked-page *::before,
+.locked-page *::after {
+  box-sizing: border-box;
+}
+
+/* ── Page shell ──────────────────────────────── */
+.locked-page {
+  min-height: 100vh;
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  position: relative;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Subtle purple nebula vignette on top of bg */
+.locked-page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+      ellipse 70% 40% at 50% 0%,
+      rgba(124, 58, 237, 0.28) 0%,
+      transparent 65%
+    ),
+    radial-gradient(
+      ellipse 50% 30% at 80% 20%,
+      rgba(236, 72, 153, 0.15) 0%,
+      transparent 60%
+    );
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Dark overlay ────────────────────────────── */
+.locked-overlay {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 52px 20px 44px;
+  background: linear-gradient(
+    180deg,
+    rgba(11, 13, 46, 0.55)  0%,
+    rgba(11, 13, 46, 0.80) 45%,
+    rgba(11, 13, 46, 0.96) 100%
+  );
+  overflow-y: auto;
+}
+
+/* ── Content column ──────────────────────────── */
+.locked-content {
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.locked-content--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Sender label ────────────────────────────── */
+.lc-sender {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.58);
+  margin: 0 0 16px;
+  letter-spacing: 0.025em;
+}
+
+/* ── Lock illustration ───────────────────────── */
+.lc-lock-wrapper {
+  position: relative;
+  display: inline-block;
+  margin-bottom: 18px;
+  animation: lockFloat 3.6s ease-in-out infinite;
+}
+
+.lc-lock-halo {
+  position: absolute;
+  inset: -28px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(168, 85, 247, 0.32) 0%,
+    rgba(236, 72, 153, 0.12) 50%,
+    transparent 72%
+  );
+  animation: glowPulse 2.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.lc-lock-svg {
+  width: 140px;
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 0 18px rgba(168, 85, 247, 0.65))
+    drop-shadow(0 0 36px rgba(245, 158, 11, 0.35));
+}
+
+/* ── Capsule identity chip ───────────────────── */
+.lc-capsule-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(168, 85, 247, 0.2);
+  border-radius: 50px;
+  padding: 6px 14px 6px 6px;
+  margin-bottom: 20px;
+  backdrop-filter: blur(10px);
+}
+
+.lc-cover-thumb {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid rgba(168, 85, 247, 0.4);
+  flex-shrink: 0;
+}
+
+.lc-capsule-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.88);
+  letter-spacing: 0.01em;
+}
+
+/* ── Heading block ───────────────────────────── */
+.lc-heading {
+  font-size: 22px;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0 0 6px;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.lc-subheading {
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.48);
+  margin: 0 0 22px;
+  letter-spacing: 0.01em;
+}
+
+/* ── Countdown grid ──────────────────────────── */
+.lc-countdown {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 9px;
+  margin-bottom: 20px;
+}
+
+.lc-count-card {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(168, 85, 247, 0.22);
+  border-radius: 14px;
+  padding: 14px 4px 10px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+
+.lc-count-card:hover {
+  border-color: rgba(168, 85, 247, 0.55);
+  box-shadow: 0 0 18px rgba(168, 85, 247, 0.18);
+}
+
+.lc-count-num {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(135deg, #ffffff 20%, #c084fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.lc-count-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.42);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* ── Info rows (receiver / hint) ─────────────── */
+.lc-info-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  padding: 13px 14px;
+  margin-bottom: 10px;
+  text-align: left;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: border-color 0.2s;
+}
+
+.lc-info-row:hover {
+  border-color: rgba(168, 85, 247, 0.3);
+}
+
+.lc-info-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(168, 85, 247, 0.15);
+  border-radius: 50%;
+}
+
+.lc-info-icon--hint {
+  background: rgba(236, 72, 153, 0.15);
+}
+
+.lc-info-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.lc-info-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.lc-info-primary {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.88);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lc-info-secondary {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.42);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lc-info-chevron {
+  color: rgba(255, 255, 255, 0.28);
+  font-size: 20px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+/* ── Notify banner ───────────────────────────── */
+.lc-notify-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(168, 85, 247, 0.1);
+  border: 1px solid rgba(168, 85, 247, 0.28);
+  border-radius: 14px;
+  padding: 14px 14px;
+  margin-bottom: 20px;
+  text-align: left;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.lc-notify-bell {
+  font-size: 22px;
+  flex-shrink: 0;
+  animation: bellRing 4s ease-in-out infinite;
+  transform-origin: top center;
+}
+
+.lc-notify-text {
+  flex: 1;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* ── CTA button ──────────────────────────────── */
+.lc-btn {
+  width: 100%;
+  padding: 16px 24px;
+  border: none;
+  border-radius: 50px;
+  background: linear-gradient(
+    135deg,
+    #7c3aed 0%,
+    #a855f7 35%,
+    #ec4899 70%,
+    #f97316 100%
+  );
+  background-size: 200% 200%;
+  background-position: 0% 50%;
+  color: #ffffff;
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  box-shadow: 0 4px 24px rgba(124, 58, 237, 0.48),
+    0 2px 8px rgba(236, 72, 153, 0.28);
+  transition: transform 0.15s ease, box-shadow 0.3s ease,
+    background-position 0.4s ease;
+  animation: btnShimmer 4s ease-in-out infinite;
+}
+
+.lc-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(124, 58, 237, 0.62),
+    0 4px 16px rgba(236, 72, 153, 0.38);
+  background-position: 100% 50%;
+}
+
+.lc-btn:active {
+  transform: translateY(0px);
+}
+
+.lc-btn:focus-visible {
+  outline: 2px solid rgba(168, 85, 247, 0.8);
+  outline-offset: 3px;
+}
+
+.lc-btn--done {
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+  background-size: 100% 100%;
+  box-shadow: 0 4px 24px rgba(5, 150, 105, 0.38);
+  animation: none;
+}
+
+/* ── Keyframe animations ─────────────────────── */
+
+/* Lock bobs gently up and down */
+@keyframes lockFloat {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-13px);
+  }
+}
+
+/* Halo breathes in and out */
+@keyframes glowPulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+}
+
+/* Bell tilts to simulate ringing */
+@keyframes bellRing {
+  0%,
+  90%,
+  100% {
+    transform: rotate(0deg);
+  }
+  92% {
+    transform: rotate(-12deg);
+  }
+  94% {
+    transform: rotate(12deg);
+  }
+  96% {
+    transform: rotate(-8deg);
+  }
+  98% {
+    transform: rotate(6deg);
+  }
+}
+
+/* Button gradient drift */
+@keyframes btnShimmer {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* ── Responsive tweaks ───────────────────────── */
+@media (max-width: 380px) {
+  .locked-overlay {
+    padding: 40px 16px 36px;
+  }
+
+  .lc-lock-svg {
+    width: 120px;
+  }
+
+  .lc-heading {
+    font-size: 19px;
+  }
+
+  .lc-count-num {
+    font-size: 26px;
+  }
+
+  .lc-count-card {
+    border-radius: 11px;
+    padding: 12px 2px 8px;
+  }
+}
+
+@media (min-width: 480px) {
+  .lc-lock-svg {
+    width: 160px;
+  }
+
+  .lc-heading {
+    font-size: 25px;
+  }
+
+  .lc-count-num {
+    font-size: 34px;
+  }
+}
+
+/* ── Reduced-motion respect ──────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .lc-lock-wrapper,
+  .lc-lock-halo,
+  .lc-notify-bell,
+  .lc-btn,
+  .locked-content {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .locked-content {
+    opacity: 1;
+    transform: none;
+  }
+}

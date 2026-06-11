@@ -1,0 +1,139 @@
+/* ══════════════════════════════════════════
+   CapsulePage.css
+   Wraps LockedCapsule / UnlockedCapsule
+   and provides the floating share FAB,
+   loading screen, and error screen.
+══════════════════════════════════════════ */
+
+/* ── Root ── */
+.cp-root {
+  position: relative;
+  min-height: 100dvh;
+}
+
+/* ── Floating share button ── */
+.cp-share-fab {
+  position: fixed;
+  bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  right: 18px;
+  z-index: 200;
+  /* subtle drop shadow so it floats above any background */
+  filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.45));
+}
+
+.cp-share-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 13px 20px;
+  border: none;
+  border-radius: 999px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  white-space: nowrap;
+  color: #fff;
+  background: linear-gradient(135deg, #7c3aed 0%, #ec4899 100%);
+  box-shadow:
+    0 4px 20px rgba(124, 58, 237, 0.55),
+    0 1px 4px rgba(0, 0, 0, 0.25);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.25s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cp-share-btn:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 8px 28px rgba(124, 58, 237, 0.65),
+    0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.cp-share-btn:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.cp-share-btn--copied,
+.cp-share-btn--shared {
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+  box-shadow: 0 4px 20px rgba(5, 150, 105, 0.5);
+}
+
+.cp-share-btn--error {
+  background: linear-gradient(135deg, #b91c1c 0%, #ef4444 100%);
+  box-shadow: 0 4px 20px rgba(185, 28, 28, 0.5);
+}
+
+/* ── Loading screen ── */
+.cp-loading {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  background: #0d0618;
+}
+
+.cp-loading-ring {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 3px solid rgba(124, 58, 237, 0.2);
+  border-top-color: #a855f7;
+  animation: cpSpin 0.9s linear infinite;
+}
+
+@keyframes cpSpin {
+  to { transform: rotate(360deg); }
+}
+
+.cp-loading-text {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 0.92rem;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.06em;
+  margin: 0;
+}
+
+/* ── Error screen ── */
+.cp-error-screen {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px 24px;
+  background: #0d0618;
+  text-align: center;
+}
+
+.cp-error-icon {
+  font-size: 3.5rem;
+  line-height: 1;
+}
+
+.cp-error-title {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #fff;
+  margin: 8px 0 0;
+}
+
+.cp-error-msg {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.5);
+  max-width: 300px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .cp-loading-ring { animation: none; border-top-color: #a855f7; opacity: 0.7; }
+  .cp-share-btn    { transition: none; }
+}
