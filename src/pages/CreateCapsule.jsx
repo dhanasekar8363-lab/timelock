@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "../services/supabase";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { supabase, sendMessage } from "../services/supabase";
 import BottomNav from "../components/BottomNav";
 import "./CreateCapsule.css";
 import createBg from "../assets/backgrounds/create-bg.jpg";
@@ -206,6 +206,11 @@ function MediaUploadZone({ typeId, uploads, onAdd, onRemove }) {
 ══════════════════════════════════════════ */
 function CreateCapsule() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  /* recipient pre-fill from URL (e.g. ?shareWith=USERID&shareWithName=USERNAME) */
+  const [shareWithUserId, setShareWithUserId] = useState(null);
+  const [shareWithName, setShareWithName] = useState(null);
 
   /* wizard state */
   const [step,    setStep]    = useState(1);
@@ -217,15 +222,45 @@ function CreateCapsule() {
   const [selectedTypes, setSelectedTypes] = useState(["text"]);
   const [message,       setMessage]       = useState("");
   const [senderName,    setSenderName]    = useState("");
-  const [email,         setEmail]         = useState("");
   const [title,         setTitle]         = useState("");
   const [unlockDate,    setUnlockDate]    = useState("");
   const [unlockTime,    setUnlockTime]    = useState("");
   const [hint,          setHint]          = useState("");
   const [coverType,     setCoverType]     = useState("love");
 
+  /* manual receiver fallback */
+  const [receiverName,      setReceiverName]      = useState("");
+  const [showManualReceiver,setShowManualReceiver] = useState(false);
+
+  /* username search state */
+  const [userSearchQuery,   setUserSearchQuery]   = useState("");
+  const [userSearchResults, setUserSearchResults] = useState([]);
+  const [userSearchLoading, setUserSearchLoading] = useState(false);
+  const [selectedUserId,    setSelectedUserId]    = useState(null);
+  const [selectedUserName,  setSelectedUserName]  = useState("");
+  const [selectedUserAvatar,setSelectedUserAvatar]= useState(null);
+  const [showUserDropdown,  setShowUserDropdown]  = useState(false);
+
+  /* share via Instagram modal */
+  const [igModalVisible,    setIgModalVisible]    = useState(false);
+  const [igCapsuleUrl,      setIgCapsuleUrl]      = useState("");
+  const [igCopied,          setIgCopied]          = useState(false);
+
   /* media uploads: { photo: [], video: [], audio: [], file: [] } */
   const [uploads, setUploads] = useState({ photo: [], video: [], audio: [], file: [] });
+
+  /* ── pre-fill recipient from URL params (sent from Messages chat) ── */
+  useEffect(() => {
+    const shareWith = searchParams.get("shareWith");
+    const shareName = searchParams.get("shareWithName");
+    if (shareWith) {
+      setShareWithUserId(shareWith);
+      setShareWithName(shareName || "User");
+      setSelectedUserId(shareWith);
+      setSelectedUserName(shareName || "User");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* ── revoke object URLs on unmount ── */
   useEffect(() => {
@@ -257,6 +292,53 @@ function CreateCapsule() {
     });
   };
 
+  const clearShareWith = () => {
+    setShareWithUserId(null);
+    setShareWithName(null);
+    setSelectedUserId(null);
+    setSelectedUserName("");
+    setSelectedUserAvatar(null);
+    setUserSearchQuery("");
+    setUserSearchResults([]);
+    setReceiverName("");
+    setShowManualReceiver(false);
+  };
+
+  /* ── user search ── */
+  const searchUsers = async (query) => {
+    setUserSearchQuery(query);
+    if (!query.trim()) {
+      setUserSearchResults([]);
+      setShowUserDropdown(false);
+      return;
+    }
+    setUserSearchLoading(true);
+    setShowUserDropdown(true);
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .ilike("display_name", `%${query}%`)
+        .limit(8);
+      setUserSearchResults(data || []);
+    } catch {
+      setUserSearchResults([]);
+    } finally {
+      setUserSearchLoading(false);
+    }
+  };
+
+  const selectUser = (user) => {
+    setSelectedUserId(user.id);
+    setSelectedUserName(user.display_name);
+    setSelectedUserAvatar(user.avatar_url);
+    setShareWithUserId(user.id);
+    setShareWithName(user.display_name);
+    setUserSearchQuery("");
+    setUserSearchResults([]);
+    setShowUserDropdown(false);
+  };
+
   const totalUploads = Object.values(uploads).flat().length;
 
   const selectedCover = COVERS.find((c) => c.id === coverType) || COVERS[0];
@@ -282,10 +364,11 @@ function CreateCapsule() {
   const messageValid    = !messageRequired || message.trim().length > 0;
   const canProceedStep1 = selectedTypes.length > 0 && messageValid;
   const canProceedStep2 =
-    senderName.trim() && email.trim() && title.trim() && unlockDate && unlockTime;
+    senderName.trim() && title.trim() && unlockDate && unlockTime &&
+    (selectedUserId || receiverName.trim());
 
   /* ── submit ── */
-  const saveCapsule = async () => {
+  const saveCapsule = async ({ shareVia } = {}) => {
     console.log("HANDLE SUBMIT START");
     setError("");
     setSaving(true);
@@ -316,14 +399,25 @@ function CreateCapsule() {
     setUploadProgress("Saving capsule…");
 
     /* 2. Insert capsule row */
-    console.log("BEFORE CAPSULE INSERT");
-    console.log("UPLOADED MEDIA", uploadedMedia);
-
     const slug = generateSlug(title);
 
+    // ── Resolve the authenticated user BEFORE building the payload ──────────
+    const { data: authData, error: authErr } = await supabase.auth.getUser();
+    if (authErr || !authData?.user) {
+      setError("You must be logged in to create a capsule.");
+      setSaving(false);
+      setUploadProgress("");
+      return;
+    }
+    const currentUserId = authData.user.id;
+    console.log("🔐 Authenticated user.id for new capsule:", currentUserId);
+    // ────────────────────────────────────────────────────────────────────────
+
     const payload = {
+      user_id:        currentUserId,   // ← required for RLS SELECT / DELETE
+      sender_id:      currentUserId,   // ← belt-and-suspenders for RLS policy
       sender_name:    senderName,
-      receiver_email: email,
+      receiver_email: selectedUserId || receiverName,
       title:          title,
       message:        message,
       hint:           hint,
@@ -344,13 +438,61 @@ function CreateCapsule() {
 
     console.log("INSERT DATA", data);
     console.log("INSERT ERROR", err);
-    console.log("AFTER CAPSULE INSERT");
 
     setSaving(false);
     setUploadProgress("");
 
     if (err) { setError(err.message); return; }
     const savedSlug = data?.[0]?.slug || slug;
+    const capsuleUrl = `${window.location.origin}/capsule/${savedSlug}`;
+
+    /* 3. Share via WhatsApp */
+    if (shareVia === "whatsapp") {
+      const waText = `I sent you a Time Capsule! It unlocks on ${unlockDateDisplay}. Open it here: ${capsuleUrl}`;
+      window.open(`https://wa.me/?text=${encodeURIComponent(waText)}`, "_blank");
+      if (selectedUserId && data?.[0]) {
+        try {
+          const { data: authData } = await supabase.auth.getUser();
+          const senderId = authData?.user?.id;
+          if (senderId) {
+            const capsuleContent = JSON.stringify({
+              type: "capsule", id: data[0].id, title: data[0].title,
+              slug: data[0].slug, cover_type: data[0].cover_type, unlock_date: data[0].unlock_date,
+            });
+            await sendMessage(senderId, selectedUserId, capsuleContent);
+          }
+        } catch (msgErr) { console.error("Error sending capsule message:", msgErr); }
+        navigate(`/messages?userId=${selectedUserId}&userName=${encodeURIComponent(selectedUserName || "User")}`);
+      } else {
+        navigate(`/capsule/${savedSlug}`);
+      }
+      return;
+    }
+
+    /* 4. Share via Instagram */
+    if (shareVia === "instagram") {
+      setIgCapsuleUrl(capsuleUrl);
+      setIgModalVisible(true);
+      return;
+    }
+
+    /* 5. Normal send — message the recipient if selected */
+    if (selectedUserId && data?.[0]) {
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        const senderId = authData?.user?.id;
+        if (senderId) {
+          const capsuleContent = JSON.stringify({
+            type: "capsule", id: data[0].id, title: data[0].title,
+            slug: data[0].slug, cover_type: data[0].cover_type, unlock_date: data[0].unlock_date,
+          });
+          await sendMessage(senderId, selectedUserId, capsuleContent);
+        }
+      } catch (msgErr) { console.error("Error sending capsule message:", msgErr); }
+      navigate(`/messages?userId=${selectedUserId}&userName=${encodeURIComponent(selectedUserName || "User")}`);
+      return;
+    }
+
     navigate(`/capsule/${savedSlug}`);
   };
 
@@ -487,37 +629,128 @@ function CreateCapsule() {
             />
           </div>
 
-          <p className="cc-section-label">Who is this for?</p>
-
+          <p className="cc-section-label">From</p>
           <div className="cc-glass-field">
-            <input
-              className="cc-inline-input"
-              type="text"
-              placeholder="Your name"
-              value={senderName}
-              onChange={(e) => setSenderName(e.target.value)}
-            />
-          </div>
-
-          <div className="cc-glass-field">
-            <span className="cc-glass-avatar">👤</span>
+            <span className="cc-glass-avatar">✍️</span>
             <div className="cc-glass-right">
               <input
                 className="cc-inline-input"
                 type="text"
-                placeholder="Capsule title"
+                placeholder="Your name"
+                value={senderName}
+                onChange={(e) => setSenderName(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <p className="cc-section-label">Capsule title</p>
+          <div className="cc-glass-field">
+            <span className="cc-glass-avatar">📦</span>
+            <div className="cc-glass-right">
+              <input
+                className="cc-inline-input"
+                type="text"
+                placeholder="Give this capsule a name"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
               />
-              <input
-                className="cc-inline-input cc-sub-input"
-                type="email"
-                placeholder="receiver@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
             </div>
-            <button className="cc-edit-btn" aria-label="Edit">✏️</button>
+          </div>
+
+          {/* Who is this for — username search */}
+          <p className="cc-section-label">Who is this for?</p>
+          <div className="cc-user-search-wrap" style={{ position: "relative" }}>
+            {selectedUserId ? (
+              /* Selected user chip */
+              <div className="cc-user-chip">
+                {selectedUserAvatar ? (
+                  <img src={selectedUserAvatar} alt={selectedUserName} className="cc-user-chip-avatar" />
+                ) : (
+                  <span className="cc-user-chip-avatar-fallback">👤</span>
+                )}
+                <span className="cc-user-chip-name">{selectedUserName}</span>
+                {!shareWithUserId && (
+                  <button
+                    type="button"
+                    className="cc-user-chip-clear"
+                    onClick={clearShareWith}
+                    aria-label="Clear recipient"
+                  >✕</button>
+                )}
+              </div>
+            ) : (
+              <>
+                {/* Search input */}
+                <div className="cc-user-search-field">
+                  <span className="cc-user-search-icon">🔍</span>
+                  <input
+                    className="cc-user-search-input"
+                    type="text"
+                    placeholder="Search by username…"
+                    value={userSearchQuery}
+                    onChange={(e) => searchUsers(e.target.value)}
+                    onFocus={() => userSearchResults.length > 0 && setShowUserDropdown(true)}
+                  />
+                </div>
+
+                {/* Manual name fallback */}
+                {!showManualReceiver ? (
+                  <button
+                    type="button"
+                    className="cc-manual-receiver-link"
+                    onClick={() => setShowManualReceiver(true)}
+                  >
+                    or enter name manually
+                  </button>
+                ) : (
+                  <div className="cc-glass-field" style={{ marginTop: 8 }}>
+                    <span className="cc-glass-avatar">👤</span>
+                    <div className="cc-glass-right">
+                      <input
+                        className="cc-inline-input"
+                        type="text"
+                        placeholder="Recipient's name"
+                        value={receiverName}
+                        onChange={(e) => setReceiverName(e.target.value)}
+                        autoFocus
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="cc-edit-btn"
+                      onClick={() => { setShowManualReceiver(false); setReceiverName(""); }}
+                      aria-label="Cancel manual entry"
+                      title="Cancel"
+                    >✕</button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Dropdown results */}
+            {showUserDropdown && !selectedUserId && (userSearchLoading || userSearchResults.length > 0) && (
+              <div className="cc-user-dropdown">
+                {userSearchLoading ? (
+                  <div className="cc-user-dropdown-empty">Searching…</div>
+                ) : (
+                  userSearchResults.map((user) => (
+                    <button
+                      key={user.id}
+                      type="button"
+                      className="cc-user-dropdown-row"
+                      onClick={() => selectUser(user)}
+                    >
+                      {user.avatar_url ? (
+                        <img src={user.avatar_url} alt={user.display_name} className="cc-user-dropdown-avatar" />
+                      ) : (
+                        <span className="cc-user-dropdown-avatar-fallback">👤</span>
+                      )}
+                      <span className="cc-user-dropdown-name">{user.display_name}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
           </div>
 
           <p className="cc-section-label">Add a hint (optional)</p>
@@ -578,7 +811,7 @@ function CreateCapsule() {
               <span className="cc-preview-icon-sm">👤</span>
               <div>
                 <p className="cc-preview-field-label">To</p>
-                <p className="cc-preview-field-value">{email || "—"}</p>
+                <p className="cc-preview-field-value">{selectedUserName || receiverName || "—"}</p>
               </div>
             </div>
 
@@ -666,11 +899,61 @@ function CreateCapsule() {
 
           <button
             className="cc-primary-btn"
-            onClick={saveCapsule}
+            onClick={() => saveCapsule()}
             disabled={saving}
           >
             {saving ? uploadProgress || "Sending…" : "Send Capsule 🚀"}
           </button>
+
+          {/* Share via section */}
+          <div className="cc-share-via-section">
+            <p className="cc-share-via-label">— or share via —</p>
+            <button
+              className="cc-share-btn cc-share-btn--whatsapp"
+              onClick={() => saveCapsule({ shareVia: "whatsapp" })}
+              disabled={saving}
+            >
+              💬 WhatsApp
+            </button>
+            <button
+              className="cc-share-btn cc-share-btn--instagram"
+              onClick={() => saveCapsule({ shareVia: "instagram" })}
+              disabled={saving}
+            >
+              📸 Instagram
+            </button>
+          </div>
+
+          {/* Instagram modal */}
+          {igModalVisible && (
+            <div className="cc-ig-modal-backdrop" onClick={() => setIgModalVisible(false)}>
+              <div className="cc-ig-modal" onClick={(e) => e.stopPropagation()}>
+                <p className="cc-ig-modal-title">Share on Instagram</p>
+                <p className="cc-ig-modal-desc">
+                  Copy this link and paste it in your Instagram DM:
+                </p>
+                <div className="cc-ig-url-box">
+                  <span className="cc-ig-url-text">{igCapsuleUrl}</span>
+                </div>
+                <button
+                  className="cc-ig-copy-btn"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(igCapsuleUrl);
+                    setIgCopied(true);
+                    setTimeout(() => setIgCopied(false), 2000);
+                  }}
+                >
+                  {igCopied ? "✓ Copied!" : "Copy Link"}
+                </button>
+                <button
+                  className="cc-ig-close-btn"
+                  onClick={() => setIgModalVisible(false)}
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          )}
 
           <button
             className="cc-ghost-btn"

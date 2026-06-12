@@ -830,6 +830,295 @@
 /* ── Spacer ── */
 .cc-bottom-spacer { height: 24px; }
 
+/* ── Username search (Step 2) ── */
+.cc-user-search-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.cc-user-search-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--cc-surface);
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-radius);
+  padding: 13px 16px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: border-color 0.2s;
+}
+.cc-user-search-field:focus-within {
+  border-color: rgba(168,85,247,0.55);
+}
+.cc-user-search-icon { font-size: 16px; flex-shrink: 0; opacity: 0.6; }
+.cc-user-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--cc-text);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  outline: none;
+  min-width: 0;
+  width: 100%;
+}
+.cc-user-search-input::placeholder { color: rgba(255,255,255,0.3); }
+
+/* Dropdown — floats above the page flow */
+.cc-user-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #1a1b3d;
+  border: 1px solid rgba(168,85,247,0.45);
+  border-radius: var(--cc-radius);
+  overflow: hidden;
+  z-index: 200;
+  max-height: 240px;
+  overflow-y: auto;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.55), 0 0 0 1px rgba(168,85,247,0.1);
+}
+.cc-user-dropdown-empty {
+  padding: 14px 18px;
+  font-size: 13px;
+  color: var(--cc-muted);
+  text-align: center;
+}
+.cc-user-dropdown-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 16px;
+  background: transparent;
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  color: var(--cc-text);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.cc-user-dropdown-row:first-child { border-top: none; }
+.cc-user-dropdown-row:active,
+.cc-user-dropdown-row:hover { background: rgba(168,85,247,0.14); }
+.cc-user-dropdown-avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.cc-user-dropdown-avatar-fallback {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.cc-user-dropdown-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Selected user chip */
+.cc-user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px 8px 10px;
+  background: rgba(124,92,255,0.15);
+  border: 1px solid rgba(168,85,247,0.35);
+  border-radius: 999px;
+  max-width: 100%;
+}
+.cc-user-chip-avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.cc-user-chip-avatar-fallback {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.cc-user-chip-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cc-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cc-user-chip-clear {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--cc-muted);
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s;
+}
+.cc-user-chip-clear:hover { color: #ff8080; }
+
+/* Manual receiver fallback link */
+.cc-manual-receiver-link {
+  background: none;
+  border: none;
+  color: var(--cc-muted);
+  font-size: 12px;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  padding: 6px 2px 0;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.2s;
+}
+.cc-manual-receiver-link:hover { color: var(--cc-text); }
+
+/* ── Share via section (Step 3) ── */
+.cc-share-via-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+.cc-share-via-label {
+  text-align: center;
+  font-size: 12px;
+  color: var(--cc-muted);
+  margin: 0;
+  letter-spacing: 0.3px;
+}
+.cc-share-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 15px 24px;
+  border: none;
+  border-radius: 50px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  transition: transform 0.15s, opacity 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  gap: 8px;
+}
+.cc-share-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.cc-share-btn:not(:disabled):active { transform: scale(0.97); }
+
+.cc-share-btn--whatsapp {
+  background: #25D366;
+  box-shadow: 0 4px 16px rgba(37,211,102,0.35);
+}
+.cc-share-btn--instagram {
+  background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+  box-shadow: 0 4px 16px rgba(220,39,67,0.35);
+}
+
+/* ── Instagram share modal ── */
+.cc-ig-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 0 env(safe-area-inset-bottom, 0px);
+  backdrop-filter: blur(4px);
+}
+.cc-ig-modal {
+  background: #1a1b3d;
+  border: 1px solid rgba(168,85,247,0.3);
+  border-radius: 24px 24px 0 0;
+  padding: 28px 24px 32px;
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.cc-ig-modal-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--cc-text);
+  margin: 0;
+  text-align: center;
+}
+.cc-ig-modal-desc {
+  font-size: 13px;
+  color: var(--cc-muted);
+  margin: 0;
+  text-align: center;
+  line-height: 1.5;
+}
+.cc-ig-url-box {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--cc-radius-sm);
+  padding: 12px 14px;
+  word-break: break-all;
+}
+.cc-ig-url-text {
+  font-size: 13px;
+  color: #d8b4fe;
+  font-family: monospace;
+}
+.cc-ig-copy-btn {
+  width: 100%;
+  padding: 14px;
+  border-radius: 50px;
+  border: none;
+  background: linear-gradient(135deg, #ff6b9d, #a855f7);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.15s;
+}
+.cc-ig-copy-btn:active { transform: scale(0.97); }
+.cc-ig-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--cc-muted);
+  font-size: 14px;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  padding: 4px;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.2s;
+}
+.cc-ig-close-btn:hover { color: var(--cc-text); }
+
 /* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   .cc-illustration,

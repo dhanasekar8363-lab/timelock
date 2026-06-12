@@ -29,48 +29,123 @@ function getCapsuleAccent(index) {
   const accents = [
     { bg: "rgba(255,100,100,0.15)", border: "rgba(255,100,100,0.35)", icon: "#ff6b6b" },
     { bg: "rgba(100,180,255,0.15)", border: "rgba(100,180,255,0.35)", icon: "#64b4ff" },
-    { bg: "rgba(255,180,80,0.15)", border: "rgba(255,180,80,0.35)", icon: "#ffb450" },
+    { bg: "rgba(255,180,80,0.15)",  border: "rgba(255,180,80,0.35)",  icon: "#ffb450" },
     { bg: "rgba(100,220,180,0.15)", border: "rgba(100,220,180,0.35)", icon: "#64dca0" },
   ];
   return accents[index % accents.length];
 }
 
 function Home() {
-  const [capsules, setCapsules] = useState([]);
-  const [activeTab, setActiveTab] = useState("sent");
-  const [loading, setLoading] = useState(true);
+  const [capsules, setCapsules]         = useState([]);
+  const [activeTab, setActiveTab]       = useState("sent");
+  const [loading, setLoading]           = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting]         = useState(false);
+  const [openMenuId, setOpenMenuId]     = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchCapsules();
+    supabase.auth.getUser().then(({ data }) => {
+      setCurrentUserId(data?.user?.id ?? null);
+    });
   }, []);
 
   const fetchCapsules = async () => {
     setLoading(true);
+
+    // ── Always scope to the authenticated user ──────────────────────────────
+    const { data: { user }, error: authErr } = await supabase.auth.getUser();
+    if (authErr || !user) {
+      console.error("fetchCapsules: not authenticated", authErr);
+      setLoading(false);
+      return;
+    }
+    console.log("📦 Fetching capsules for user:", user.id);
+    // ────────────────────────────────────────────────────────────────────────
+
     const { data, error } = await supabase
       .from("capsules")
       .select("*")
+      .or(`user_id.eq.${user.id},sender_id.eq.${user.id}`)
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.log(error);
+      console.error("Fetch capsules error:", error);
       setLoading(false);
       return;
     }
 
+    console.log("📦 Fetched capsules:", data);
     setCapsules(data);
     setLoading(false);
   };
 
-  const sentCapsules = capsules.filter((c) => !c.is_received);
+  // ── handleDelete ──────────────────────────────────────────────────────────
+  const handleDelete = async (capsuleId) => {
+    try {
+      setDeleting(true);
+
+      const { data: { user }, error: authErr } = await supabase.auth.getUser();
+      if (authErr || !user) {
+        alert("You must be logged in to delete capsules.");
+        return;
+      }
+
+      const capsule = capsules.find((c) => c.id === capsuleId);
+      console.log("👤 user.id        :", user.id);
+      console.log("🫙 capsule.id     :", capsule?.id);
+      console.log("🫙 capsule.user_id:", capsule?.user_id);
+      console.log("🫙 capsule.sender_id:", capsule?.sender_id);
+
+      const { data, error } = await supabase
+        .from("capsules")
+        .delete()
+        .eq("id", capsuleId)
+        .select();
+
+      console.log("Delete result:", data);
+      console.log("Delete error :", error);
+
+      if (error) {
+        console.error("Supabase delete error:", error);
+        alert(`Delete failed: ${error.message}`);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        console.warn(
+          `⚠️ No rows deleted — RLS blocked the operation.\n` +
+          `   Ensure your Supabase DELETE policy is:\n` +
+          `   (auth.uid() = user_id) OR (auth.uid() = sender_id)`
+        );
+        alert("Delete blocked by Supabase RLS. Check the browser console for details.");
+        return;
+      }
+
+      console.log(`✅ Deleted ${data.length} capsule(s)`);
+      setCapsules((prev) => prev.filter((c) => c.id !== capsuleId));
+      setDeleteTarget(null);
+    } catch (err) {
+      console.error("Unexpected delete error:", err);
+      alert(`Unexpected error: ${err.message}`);
+    } finally {
+      setDeleting(false);
+    }
+  };
+  // ──────────────────────────────────────────────────────────────────────────
+
+  const sentCapsules     = capsules.filter((c) => !c.is_received);
   const receivedCapsules = capsules.filter((c) => c.is_received);
-  const displayCapsules = activeTab === "sent" ? sentCapsules : receivedCapsules;
-  const receivedCount = receivedCapsules.length;
+  const displayCapsules  = activeTab === "sent" ? sentCapsules : receivedCapsules;
+  const receivedCount    = receivedCapsules.length;
 
   return (
     <div
       className="home"
       style={{ backgroundImage: `url(${homeBg})` }}
+      onClick={() => setOpenMenuId(null)}
     >
       {/* Overlay gradient */}
       <div className="home-overlay" />
@@ -146,15 +221,16 @@ function Home() {
           ) : (
             displayCapsules.map((capsule, i) => {
               const accent = getCapsuleAccent(i);
-              const emoji = getCapsuleEmoji(capsule.title);
+              const emoji  = getCapsuleEmoji(capsule.title);
               return (
                 <div
                   key={capsule.id}
                   className="capsule-card"
                   style={{
-                    "--card-bg": accent.bg,
+                    "--card-bg":     accent.bg,
                     "--card-border": accent.border,
-                    "--card-icon": accent.icon,
+                    "--card-icon":   accent.icon,
+                    position: "relative",
                   }}
                   onClick={() => navigate(`/capsule/${capsule.slug}`)}
                 >
@@ -177,13 +253,13 @@ function Home() {
                     <p className="card-opens">
                       Opens on{" "}
                       {new Date(capsule.unlock_date).toLocaleDateString("en-GB", {
-                        day: "2-digit",
+                        day:   "2-digit",
                         month: "short",
-                        year: "numeric",
+                        year:  "numeric",
                       })}
                       {", "}
                       {new Date(capsule.unlock_date).toLocaleTimeString("en-US", {
-                        hour: "2-digit",
+                        hour:   "2-digit",
                         minute: "2-digit",
                       })}
                     </p>
@@ -193,13 +269,69 @@ function Home() {
                       <span className="card-lock-badge">🔒 Locked</span>
                     )}
                   </div>
-                  <div className="card-chevron">›</div>
+
+                  {/* ⋮ menu — only for own capsules */}
+                  {(!capsule.user_id ||
+                    capsule.user_id === currentUserId ||
+                    capsule.sender_id === currentUserId) && (
+                    <div className="card-menu-wrap">
+                      <button
+                        className="card-menu-btn"
+                        aria-label="More options"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuId(openMenuId === capsule.id ? null : capsule.id);
+                        }}
+                      >
+                        ⋮
+                      </button>
+                      {openMenuId === capsule.id && (
+                        <div
+                          className="card-menu-dropdown"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div
+                            className="card-menu-item"
+                            onClick={() => {
+                              setOpenMenuId(null);
+                              setDeleteTarget(capsule);
+                            }}
+                          >
+                            🗑️ Delete
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })
           )}
         </div>
       </div>
+
+      {/* Delete confirmation modal */}
+      {deleteTarget && (
+        <div className="delete-overlay" onClick={() => setDeleteTarget(null)}>
+          <div className="delete-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="delete-icon">🗑️</div>
+            <h3>Delete Capsule?</h3>
+            <p>"{deleteTarget.title}" will be permanently deleted.</p>
+            <div className="delete-actions">
+              <button className="cancel-btn" onClick={() => setDeleteTarget(null)}>
+                Cancel
+              </button>
+              <button
+                className="confirm-delete-btn"
+                onClick={() => handleDelete(deleteTarget.id)}
+                disabled={deleting}
+              >
+                {deleting ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="bottom-spacer" />
       <BottomNav />

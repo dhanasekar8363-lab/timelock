@@ -1,5 +1,13 @@
 {
   "appId": "com.dhana.timelock",
   "appName": "TimeLock",
-  "webDir": "dist"
+  "webDir": "dist",
+  "plugins": {
+    "App": {
+      "launchUrl": "com.dhana.timelock://"
+    }
+  },
+  "server": {
+    "androidScheme": "com.dhana.timelock"
+  }
 }
