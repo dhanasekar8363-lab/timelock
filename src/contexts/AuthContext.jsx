@@ -25,28 +25,28 @@ export function AuthProvider({ children }) {
     );
 
     // 3. On Android, intercept the deep link that Google sends back after OAuth.
-    //    The URL looks like: com.dhana.timelock://login-callback#access_token=...&refresh_token=...
-    //    We pull the fragment/query out and hand it to Supabase so it can set the session.
+    //    The URL looks like: com.dhana.timelock://login-callback?code=...
+    //    Supabase uses the PKCE flow, so we exchange the auth code for a session.
     let appUrlListener = null;
     if (Capacitor.isNativePlatform()) {
       App.addListener('appUrlOpen', async ({ url }) => {
         console.log('🔗 Deep link received:', url);
+
         try {
-          // The token fragment is everything after the first '#' or '?'
-          const separator = url.includes('#') ? '#' : '?';
-          const fragment = url.split(separator)[1];
-          if (!fragment) return;
+          const parsedUrl = new URL(url);
+          const code = parsedUrl.searchParams.get('code');
 
-          const params = new URLSearchParams(fragment);
-          const accessToken  = params.get('access_token');
-          const refreshToken = params.get('refresh_token');
+          if (code) {
+            console.log('🔑 Exchanging code for session...');
 
-          if (accessToken && refreshToken) {
-            const { error } = await supabase.auth.setSession({
-              access_token:  accessToken,
-              refresh_token: refreshToken,
-            });
-            if (error) console.error('setSession error:', error);
+            const { data, error } =
+              await supabase.auth.exchangeCodeForSession(code);
+
+            if (error) {
+              console.error('exchangeCodeForSession error:', error);
+            } else {
+              console.log('✅ Session created', data);
+            }
           }
         } catch (err) {
           console.error('Deep link handling error:', err);

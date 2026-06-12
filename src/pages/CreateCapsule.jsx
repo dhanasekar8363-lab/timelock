@@ -414,7 +414,6 @@ function CreateCapsule() {
     // ────────────────────────────────────────────────────────────────────────
 
     const payload = {
-      user_id:        currentUserId,   // ← required for RLS SELECT / DELETE
       sender_id:      currentUserId,   // ← belt-and-suspenders for RLS policy
       sender_name:    senderName,
       receiver_email: selectedUserId || receiverName,
