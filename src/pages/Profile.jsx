@@ -10,7 +10,7 @@ import {
   getFollowing,
 } from "../services/supabase";
 import { useAuth } from "../contexts/AuthContext";
-import homeBg from "../assets/backgrounds/main-bg.jpg";
+import homeBg from "../assets/backgrounds/home-bg.jpg";
 import "./Profile.css";
 
 /* ─── Level System ─── */
