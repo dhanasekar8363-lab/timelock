@@ -31,7 +31,14 @@ function getLevel(count) {
   const cur = LEVEL_THRESHOLDS[lvl - 1];
   const next = lvl < 15 ? LEVEL_THRESHOLDS[lvl] : cur + 1;
   const pct = next === cur ? 100 : Math.round(((count - cur) / (next - cur)) * 100);
-  return { level: lvl, title: LEVEL_TITLES[lvl - 1], progress: Math.min(100, Math.max(0, pct)) };
+  const nextTitle = lvl < 15 ? LEVEL_TITLES[lvl] : "Time Lord";
+  return {
+    level: lvl,
+    title: LEVEL_TITLES[lvl - 1],
+    progress: Math.min(100, Math.max(0, pct)),
+    nextTitle,
+    capsuleNext: next,
+  };
 }
 
 /* ─── Achievements ─── */
@@ -53,7 +60,7 @@ function computeAchievements(stats, followCounts) {
       progress: Math.min(10, stats.locked), total: 10,
     },
     {
-      id: "future_master", icon: "⭐", label: "Future Master",
+      id: "future_master", icon: "🚀", label: "Future Master",
       color: "#7c5cff", unlocked: stats.created >= 50,
       progress: Math.min(50, stats.created), total: 50,
     },
@@ -230,7 +237,7 @@ export default function Profile() {
   const logout = async () => { await supabase.auth.signOut(); navigate("/login"); };
 
   /* derived */
-  const { level, title: levelTitle } = getLevel(stats.created);
+  const { level, title: levelTitle, progress: levelProgress, nextTitle: levelNextTitle, capsuleNext } = getLevel(stats.created);
   const achievements = computeAchievements(stats, followCounts);
   const avatarSrc = profile?.avatar_url
     || (isOwnProfile && user?.user_metadata?.picture)
@@ -307,6 +314,7 @@ export default function Profile() {
 
           <div className="tl-level-badge">
             <span className="tl-lv-num">Lv. {level}</span>
+            <span className="tl-lv-sep">·</span>
             <span className="tl-lv-title">{levelTitle}</span>
           </div>
 
@@ -339,6 +347,35 @@ export default function Profile() {
               <span className="tl-social-num">{followCounts.following}</span>
               <span className="tl-social-label">FOLLOWING</span>
             </div>
+          </div>
+        </div>
+
+        {/* XP LEVEL PROGRESSION */}
+        <div className="tl-xp-card">
+          <div className="tl-xp-top">
+            <div className="tl-xp-badge-row">
+              <span className="tl-xp-lv-tag">Lv.{level}</span>
+              <span className="tl-xp-title-text">{levelTitle}</span>
+            </div>
+            {level < 15 && (
+              <span className="tl-xp-next-label">
+                Next: {levelNextTitle}
+              </span>
+            )}
+          </div>
+          <div className="tl-xp-bar-track" role="progressbar" aria-valuenow={levelProgress} aria-valuemin={0} aria-valuemax={100}>
+            <div
+              className="tl-xp-bar-fill"
+              style={{ width: statsLoading ? "0%" : `${levelProgress}%` }}
+            />
+          </div>
+          <div className="tl-xp-bottom">
+            <span className="tl-xp-count">
+              {statsLoading ? "— / —" : `${stats.created} / ${capsuleNext}`} Capsules
+            </span>
+            <span className="tl-xp-pct">
+              {statsLoading ? "—" : `${levelProgress}%`}
+            </span>
           </div>
         </div>
 
@@ -375,16 +412,28 @@ export default function Profile() {
         </div>
         <div className="tl-achievements-row">
           {achievements.map((a) => (
-            <div key={a.id} className={`tl-ach-card ${a.unlocked ? "tl-ach-unlocked" : "tl-ach-locked"}`} style={{"--ac": a.color}}>
+            <div
+              key={a.id}
+              className={`tl-ach-card ${a.unlocked ? "tl-ach-unlocked" : "tl-ach-locked"}`}
+              style={{"--ac": a.color}}
+            >
               <div className="tl-ach-hex">
                 <span className="tl-ach-icon">{a.icon}</span>
                 {a.unlocked && <span className="tl-ach-glow" />}
               </div>
               <span className="tl-ach-label">{a.label}</span>
-              {!a.unlocked && (
-                <div className="tl-ach-prog-track">
-                  <div className="tl-ach-prog-fill" style={{ width: `${Math.round((a.progress / a.total) * 100)}%`, background: a.color }} />
-                </div>
+              {a.unlocked ? (
+                <span className="tl-ach-check">✓ Done</span>
+              ) : (
+                <>
+                  <div className="tl-ach-prog-track">
+                    <div
+                      className="tl-ach-prog-fill"
+                      style={{ width: `${Math.round((a.progress / a.total) * 100)}%`, background: a.color }}
+                    />
+                  </div>
+                  <span className="tl-ach-prog-text">{a.progress}/{a.total}</span>
+                </>
               )}
             </div>
           ))}
@@ -459,7 +508,6 @@ export default function Profile() {
           )}
         </div>
 
-        <div style={{ height: "20px" }} />
       </div>
 
       {/* FOLLOW SHEET */}
