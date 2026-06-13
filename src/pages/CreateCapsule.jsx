@@ -400,7 +400,7 @@ function CreateCapsule() {
     /* 2. Insert capsule row */
     const slug = generateSlug(title);
 
-    // ── Resolve the authenticated user BEFORE building the payload ──────────
+    // ── Resolve the authenticated user ONCE for the whole save operation ─────
     const { data: authData, error: authErr } = await supabase.auth.getUser();
     if (authErr || !authData?.user) {
       setError("You must be logged in to create a capsule.");
@@ -415,31 +415,34 @@ function CreateCapsule() {
     // ── Resolve recipient identity ───────────────────────────────────────────
     // - selectedUserId / selectedUserName come from the username search and
     //   refer to a real TimeLock account → receiver_id + receiver_name.
-    // - receiverName (manual entry) is free text. If it happens to look like
-    //   an email address we store it as receiver_email; otherwise it's just
-    //   a display name → receiver_name.
+    // - receiverName (manual entry) is free text. If it looks like an email
+    //   we store it as receiver_email; otherwise it goes into receiver_name.
     // receiver_email must NEVER hold a UUID or a plain display name.
-    const manualReceiverIsEmail = !selectedUserId && isEmail(receiverName);
+    const manualReceiverIsEmail = !selectedUserId && isEmail(receiverName.trim());
 
-    const recipientId =
-      selectedUserId || null;
+    // FIX: receiver_id is ONLY set when we have a real authenticated user selected
+    const recipientId = selectedUserId || null;
 
+    // FIX: receiver_name is ALWAYS set to the human-readable name — never a UUID,
+    // never null when we have any name information at all.
     const recipientName =
-      selectedUserName ||
-      (!manualReceiverIsEmail ? receiverName.trim() : "") ||
-      null;
+      (selectedUserId && selectedUserName)
+        ? selectedUserName                                   // selected TimeLock user
+        : (!manualReceiverIsEmail && receiverName.trim())
+          ? receiverName.trim()                              // free-text name
+          : null;                                            // email-only recipient
 
-    const recipientEmail =
-      manualReceiverIsEmail ? receiverName.trim() : null;
+    // FIX: receiver_email holds a real email address only
+    const recipientEmail = manualReceiverIsEmail ? receiverName.trim() : null;
     // ──────────────────────────────────────────────────────────────────────────
 
     const payload = {
       sender_id:      currentUserId,   // ← belt-and-suspenders for RLS policy
-      sender_name:    senderName,
-      receiver_id:    recipientId,     // real TimeLock user, if any — powers the Received tab
+      sender_name:    senderName.trim(),
+      receiver_id:    recipientId,     // real TimeLock user UUID, or null
       receiver_name:  recipientName,   // human-readable "To:" — never a UUID
       receiver_email: recipientEmail,  // real email only, or null
-      title:          title,
+      title:          title.trim(),
       message:        message,
       hint:           hint,
       cover_type:     coverType,
@@ -467,22 +470,37 @@ function CreateCapsule() {
     const savedSlug = data?.[0]?.slug || slug;
     const capsuleUrl = `${window.location.origin}/capsule/${savedSlug}`;
 
+    /* ── Helper: send an in-app capsule notification message ── */
+    // FIX: always pass messageType = 'capsule' so the JSON payload is stored
+    // correctly and the chat UI can render a capsule card instead of blank text.
+    const sendCapsuleMessage = async () => {
+      if (!selectedUserId || !data?.[0]) return;
+      try {
+        const capsuleData = {
+          id:         data[0].id,
+          title:      data[0].title,
+          slug:       data[0].slug,
+          cover_type: data[0].cover_type,
+          unlock_date:data[0].unlock_date,
+        };
+        await sendMessage(
+          currentUserId,   // reuse the already-resolved sender id — no second auth call
+          selectedUserId,
+          `📦 I sent you a time capsule: "${data[0].title}"`,  // human-readable fallback text
+          "capsule",       // FIX: must be 'capsule', not 'text', to store structured JSON
+          capsuleData,
+        );
+      } catch (msgErr) {
+        console.error("Error sending capsule message:", msgErr);
+      }
+    };
+
     /* 3. Share via WhatsApp */
     if (shareVia === "whatsapp") {
       const waText = `I sent you a Time Capsule! It unlocks on ${unlockDateDisplay}. Open it here: ${capsuleUrl}`;
       window.open(`https://wa.me/?text=${encodeURIComponent(waText)}`, "_blank");
-      if (selectedUserId && data?.[0]) {
-        try {
-          const { data: authData } = await supabase.auth.getUser();
-          const senderId = authData?.user?.id;
-          if (senderId) {
-            const capsuleData = {
-              id: data[0].id, title: data[0].title,
-              slug: data[0].slug, cover_type: data[0].cover_type, unlock_date: data[0].unlock_date,
-            };
-            await sendMessage(senderId, selectedUserId, "", "capsule", capsuleData);
-          }
-        } catch (msgErr) { console.error("Error sending capsule message:", msgErr); }
+      await sendCapsuleMessage();
+      if (selectedUserId) {
         navigate(`/messages?userId=${selectedUserId}&userName=${encodeURIComponent(selectedUserName || "User")}`);
       } else {
         navigate(`/capsule/${savedSlug}`);
@@ -499,17 +517,7 @@ function CreateCapsule() {
 
     /* 5. Normal send — message the recipient if selected */
     if (selectedUserId && data?.[0]) {
-      try {
-        const { data: authData } = await supabase.auth.getUser();
-        const senderId = authData?.user?.id;
-        if (senderId) {
-          const capsuleData = {
-            id: data[0].id, title: data[0].title,
-            slug: data[0].slug, cover_type: data[0].cover_type, unlock_date: data[0].unlock_date,
-          };
-          await sendMessage(senderId, selectedUserId, "", "capsule", capsuleData);
-        }
-      } catch (msgErr) { console.error("Error sending capsule message:", msgErr); }
+      await sendCapsuleMessage();
       navigate(`/messages?userId=${selectedUserId}&userName=${encodeURIComponent(selectedUserName || "User")}`);
       return;
     }
@@ -730,7 +738,7 @@ function CreateCapsule() {
                       <input
                         className="cc-inline-input"
                         type="text"
-                        placeholder="Recipient's name"
+                        placeholder="Recipient's name or email"
                         value={receiverName}
                         onChange={(e) => setReceiverName(e.target.value)}
                         autoFocus
@@ -832,7 +840,10 @@ function CreateCapsule() {
               <span className="cc-preview-icon-sm">👤</span>
               <div>
                 <p className="cc-preview-field-label">To</p>
-                <p className="cc-preview-field-value">{selectedUserName || receiverName || "—"}</p>
+                {/* FIX: show the real recipient name, never a UUID */}
+                <p className="cc-preview-field-value">
+                  {selectedUserName || receiverName || "—"}
+                </p>
               </div>
             </div>
 

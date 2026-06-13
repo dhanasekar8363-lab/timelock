@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { supabase, getUnreadNotificationCount, getRecipientDisplayName } from "../services/supabase";
+import { supabase, getRecipientDisplayName } from "../services/supabase";
+import { useNotifications } from "../hooks/useNotifications";
 import BottomNav from "../components/BottomNav";
 import homeBg from "../assets/backgrounds/home-bg.jpg";
 import coverLove       from "../covers/love.png";
@@ -43,51 +44,18 @@ function Home() {
   const [deleting, setDeleting]         = useState(false);
   const [openMenuId, setOpenMenuId]     = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
-  const [unreadCount, setUnreadCount]     = useState(0);
   const navigate = useNavigate();
+
+  // ── Notification bell count via shared hook ───────────────────────────
+  const { unreadCount } = useNotifications();
 
   useEffect(() => {
     fetchCapsules();
   }, []);
 
-  // ── Notification bell — fetch count + live updates ────────────────────────
-  useEffect(() => {
-    let channel = null;
-
-    const initBell = async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!data?.user) return;
-      const userId = data.user.id;
-
-      const { count } = await getUnreadNotificationCount(userId);
-      setUnreadCount(count);
-
-      channel = supabase
-        .channel(`home-notif-bell-${userId}`)
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
-          () => setUnreadCount((prev) => prev + 1)
-        )
-        .on(
-          "postgres_changes",
-          { event: "UPDATE", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
-          async () => {
-            const { count: fresh } = await getUnreadNotificationCount(userId);
-            setUnreadCount(fresh);
-          }
-        )
-        .subscribe();
-    };
-
-    initBell();
-    return () => { if (channel) supabase.removeChannel(channel); };
-  }, []);
-
   const fetchCapsules = async () => {
     setLoading(true);
 
-    // ── Always scope to the authenticated user ──────────────────────────────
     const { data: { user }, error: authErr } = await supabase.auth.getUser();
     if (authErr || !user) {
       console.error("fetchCapsules: not authenticated", authErr);
@@ -95,12 +63,7 @@ function Home() {
       return;
     }
     setCurrentUserId(user.id);
-    console.log("📦 Fetching capsules for user:", user.id);
-    // ────────────────────────────────────────────────────────────────────────
 
-    // A capsule belongs on this screen if the user CREATED it (sender_id)
-    // or it was SHARED WITH them (receiver_id) — this powers both the
-    // "Sent" and "Received" tabs.
     const { data, error } = await supabase
       .from("capsules")
       .select("*")
@@ -113,12 +76,10 @@ function Home() {
       return;
     }
 
-    console.log("📦 Fetched capsules:", data);
-    setCapsules(data);
+    setCapsules(data || []);
     setLoading(false);
   };
 
-  // ── handleDelete ──────────────────────────────────────────────────────────
   const handleDelete = async (capsuleId) => {
     try {
       setDeleting(true);
@@ -141,9 +102,6 @@ function Home() {
         .eq("id", capsuleId)
         .select();
 
-      console.log("Delete result:", data);
-      console.log("Delete error :", error);
-
       if (error) {
         console.error("Supabase delete error:", error);
         alert(`Delete failed: ${error.message}`);
@@ -160,7 +118,6 @@ function Home() {
         return;
       }
 
-      console.log(`✅ Deleted ${data.length} capsule(s)`);
       setCapsules((prev) => prev.filter((c) => c.id !== capsuleId));
       setDeleteTarget(null);
     } catch (err) {
@@ -170,11 +127,7 @@ function Home() {
       setDeleting(false);
     }
   };
-  // ──────────────────────────────────────────────────────────────────────────
 
-  // "Sent" = capsules this user created. "Received" = capsules shared
-  // with this user by someone else. (A capsule a user sent to themself
-  // would show only in "Sent".)
   const sentCapsules     = capsules.filter((c) => c.sender_id === currentUserId);
   const receivedCapsules = capsules.filter(
     (c) => c.receiver_id === currentUserId && c.sender_id !== currentUserId
@@ -188,7 +141,6 @@ function Home() {
       style={{ backgroundImage: `url(${homeBg})` }}
       onClick={() => setOpenMenuId(null)}
     >
-      {/* Overlay gradient */}
       <div className="home-overlay" />
 
       {/* Header */}
@@ -197,6 +149,7 @@ function Home() {
           <button className="menu-btn" aria-label="Menu">
             <span /><span /><span />
           </button>
+          {/* Notification bell — uses shared hook for count */}
           <button
             className="notif-bell-btn"
             onClick={() => navigate("/notifications")}
@@ -291,6 +244,9 @@ function Home() {
             displayCapsules.map((capsule, i) => {
               const accent = getCapsuleAccent(i);
               const emoji  = getCapsuleEmoji(capsule.title);
+              const toName   = getRecipientDisplayName(capsule, "Someone special");
+              const fromName = capsule.sender_name || "Someone special";
+
               return (
                 <div
                   key={capsule.id}
@@ -318,9 +274,7 @@ function Home() {
                     <p className="card-to">
                       {activeTab === "sent" ? "To:" : "From:"}{" "}
                       <strong>
-                        {activeTab === "sent"
-                          ? getRecipientDisplayName(capsule, capsule.title)
-                          : (capsule.sender_name || "Someone special")}
+                        {activeTab === "sent" ? toName : fromName}
                       </strong>
                     </p>
                     <p className="card-opens">
@@ -343,7 +297,6 @@ function Home() {
                     )}
                   </div>
 
-                  {/* ⋮ menu — only for capsules this user created */}
                   {capsule.sender_id === currentUserId && (
                     <div className="card-menu-wrap">
                       <button
@@ -381,7 +334,6 @@ function Home() {
         </div>
       </div>
 
-      {/* Delete confirmation modal */}
       {deleteTarget && (
         <div className="delete-overlay" onClick={() => setDeleteTarget(null)}>
           <div className="delete-modal" onClick={(e) => e.stopPropagation()}>

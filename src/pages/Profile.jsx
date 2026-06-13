@@ -8,6 +8,7 @@ import {
   getFollowCounts,
   getFollowers,
   getFollowing,
+  getFollowingIds,
 } from "../services/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import homeBg from "../assets/backgrounds/home-bg.jpg";
@@ -190,24 +191,39 @@ export default function Profile() {
   };
 
   const openFollowList = async (type) => {
-    setActiveList(type); setListLoading(true); setListUsers([]); setListFollowMap({});
+    // Capture the target user at call time so it can't drift if params change mid-flight
+    const targetId = userId || user?.id;
+    setActiveList(type);
+    setListLoading(true);
+    setListUsers([]);
+    setListFollowMap({});
+
     try {
-      const { data } = type === "followers"
-        ? await getFollowers(viewingUserId) : await getFollowing(viewingUserId);
+      const { data, error } = type === "followers"
+        ? await getFollowers(targetId)
+        : await getFollowing(targetId);
+
+      if (error) throw error;
+
       const users = data || [];
       setListUsers(users);
-      if (user) {
-        const entries = await Promise.all(
-          users.map(async (u) => {
-            if (u.id === user.id) return [u.id, true];
-            const { isFollowing: f } = await checkIfFollowing(user.id, u.id);
-            return [u.id, f];
-          })
-        );
-        setListFollowMap(Object.fromEntries(entries));
+
+      // Batch-check which of these users the current viewer already follows
+      // (single query instead of N serial requests)
+      if (user && users.length > 0) {
+        const candidateIds = users.map(u => u.id).filter(id => id !== user.id);
+        const { data: followingSet } = await getFollowingIds(user.id, candidateIds);
+        const followMap = {};
+        users.forEach(u => {
+          followMap[u.id] = u.id === user.id || (followingSet && followingSet.has(u.id));
+        });
+        setListFollowMap(followMap);
       }
-    } catch (e) { console.error(e); }
-    finally { setListLoading(false); }
+    } catch (e) {
+      console.error("openFollowList error:", e);
+    } finally {
+      setListLoading(false);
+    }
   };
 
   const closeFollowList = () => { setActiveList(null); setListUsers([]); setListFollowMap({}); };
@@ -527,15 +543,20 @@ export default function Profile() {
                   <p>{activeList === "followers" ? "No followers yet" : "Not following anyone yet"}</p>
                 </div>
               ) : listUsers.map((u) => (
-                <div key={u.id} className="tl-sheet-user">
+                <div
+                  key={u.id}
+                  className="tl-sheet-user"
+                  onClick={() => { closeFollowList(); navigate(`/profile/${u.id}`); }}
+                  style={{ cursor: "pointer" }}
+                >
                   <img
                     className="tl-sheet-avatar"
-                    src={u.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.display_name || "User")}&background=7c5cff&color=fff`}
-                    alt={u.display_name}
-                    onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(u.display_name || "User")}&background=7c5cff&color=fff`; }}
+                    src={u.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.display_name || u.username || "User")}&background=7c5cff&color=fff`}
+                    alt={u.display_name || u.username || "User"}
+                    onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(u.display_name || u.username || "User")}&background=7c5cff&color=fff`; }}
                   />
-                  <span className="tl-sheet-name">{u.display_name || "User"}</span>
-                  <div className="tl-sheet-actions">
+                  <span className="tl-sheet-name">{u.display_name || u.username || "User"}</span>
+                  <div className="tl-sheet-actions" onClick={(e) => e.stopPropagation()}>
                     <button className="tl-sheet-btn tl-sb-msg" onClick={() => handleListMessage(u)}>Message</button>
                     {user && u.id !== user.id && !listFollowMap[u.id] && (
                       <button className="tl-sheet-btn tl-sb-follow" onClick={() => handleListFollow(u.id)}>Follow</button>

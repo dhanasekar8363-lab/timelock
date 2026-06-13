@@ -60,22 +60,32 @@ export const isUUID = (value) =>
 export const isEmail = (value) =>
   typeof value === 'string' && EMAIL_RE.test(value.trim())
 
-// Returns a human-friendly recipient name for display — NEVER a UUID.
-// Prefers receiver_name, then falls back to receiver_email only if it
-// isn't a UUID/email (i.e. it was actually used as a free-text name),
-// and finally to a generic fallback.
+/**
+ * Returns a human-friendly recipient name for display — NEVER a UUID.
+ *
+ * Priority:
+ *   1. receiver_name  (if present and not a UUID)
+ *   2. receiver_email (only if it is a real email — shown as-is)
+ *   3. fallback string
+ *
+ * We deliberately do NOT fall back to capsule title or any field that
+ * could leak a UUID into the UI.
+ */
 export const getRecipientDisplayName = (capsule, fallback = 'Someone special') => {
   if (!capsule) return fallback
+
+  // 1. Prefer receiver_name — must exist and must not be a raw UUID
   if (capsule.receiver_name && !isUUID(capsule.receiver_name)) {
     return capsule.receiver_name
   }
-  if (
-    capsule.receiver_email &&
-    !isUUID(capsule.receiver_email) &&
-    !isEmail(capsule.receiver_email)
-  ) {
+
+  // 2. Fall back to receiver_email ONLY if it is a real email address
+  //    (never use it when it holds a UUID or a plain display name)
+  if (capsule.receiver_email && isEmail(capsule.receiver_email)) {
     return capsule.receiver_email
   }
+
+  // 3. Generic fallback — never a capsule title or UUID
   return fallback
 }
 
@@ -129,50 +139,66 @@ export const checkIfFollowing = async (followerId, followingId) => {
 
 export const getFollowers = async (userId) => {
   try {
+    // Step 1: get all follower IDs for this user
     const { data: follows, error } = await supabase
       .from('follows')
       .select('follower_id')
       .eq('following_id', userId)
+      .order('created_at', { ascending: false })
 
     if (error) throw error
     if (!follows || follows.length === 0) return { data: [], error: null }
 
     const ids = follows.map(f => f.follower_id)
 
+    // Step 2: fetch profiles — use maybeSingle-style .in() which tolerates missing rows
     const { data: profiles, error: profileError } = await supabase
       .from('profiles')
       .select('id, username, display_name, avatar_url, bio')
       .in('id', ids)
 
     if (profileError) throw profileError
-    return { data: profiles || [], error: null }
+
+    // Step 3: preserve follow-order and filter out any ids with no profile row
+    const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]))
+    const ordered = ids.map(id => profileMap[id]).filter(Boolean)
+
+    return { data: ordered, error: null }
   } catch (error) {
-    console.error(error)
+    console.error('getFollowers error:', error)
     return { data: [], error }
   }
 }
 
 export const getFollowing = async (userId) => {
   try {
+    // Step 1: get all following IDs for this user
     const { data: follows, error } = await supabase
       .from('follows')
       .select('following_id')
       .eq('follower_id', userId)
+      .order('created_at', { ascending: false })
 
     if (error) throw error
     if (!follows || follows.length === 0) return { data: [], error: null }
 
     const ids = follows.map(f => f.following_id)
 
+    // Step 2: fetch profiles — tolerates missing rows (e.g. deleted accounts)
     const { data: profiles, error: profileError } = await supabase
       .from('profiles')
       .select('id, username, display_name, avatar_url, bio')
       .in('id', ids)
 
     if (profileError) throw profileError
-    return { data: profiles || [], error: null }
+
+    // Step 3: preserve follow-order and filter out any ids with no profile row
+    const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]))
+    const ordered = ids.map(id => profileMap[id]).filter(Boolean)
+
+    return { data: ordered, error: null }
   } catch (error) {
-    console.error(error)
+    console.error('getFollowing error:', error)
     return { data: [], error }
   }
 }
@@ -191,21 +217,56 @@ export const getFollowCounts = async (userId) => {
   }
 }
 
+/**
+ * Returns a Set of user IDs that `followerId` is currently following,
+ * filtered to only the IDs in `candidateIds`.
+ * Used to batch-check follow status for a list of users in one query.
+ */
+export const getFollowingIds = async (followerId, candidateIds) => {
+  try {
+    if (!candidateIds || candidateIds.length === 0) return { data: new Set(), error: null }
+    const { data, error } = await supabase
+      .from('follows')
+      .select('following_id')
+      .eq('follower_id', followerId)
+      .in('following_id', candidateIds)
+    if (error) throw error
+    return { data: new Set((data || []).map(r => r.following_id)), error: null }
+  } catch (error) {
+    console.error('getFollowingIds error:', error)
+    return { data: new Set(), error }
+  }
+}
+
 // ==================== MESSAGE FUNCTIONS ====================
 
+/**
+ * Send a message between two users.
+ *
+ * For capsule shares, pass messageType = 'capsule' and capsuleData = { id, title, slug, ... }.
+ * The row's `content` column will hold the JSON payload so the chat UI can render
+ * a capsule card instead of plain text.
+ *
+ * IMPORTANT: messageType must be 'capsule' (not 'text') when sharing a capsule.
+ * Passing 'text' with capsuleData will lose the structured data.
+ */
 export const sendMessage = async (senderId, recipientId, content, messageType = 'text', capsuleData = null) => {
   try {
     const row = {
       sender_id: senderId,
       recipient_id: recipientId,
-      content: content,
+      // Default to whatever plain-text content was passed
+      content: content || '',
       created_at: new Date().toISOString(),
       read_at: null,
     }
-    // Store capsule metadata as JSON in content if type is capsule
+
+    // FIX: Only overwrite content with JSON when messageType is explicitly 'capsule'
+    // AND capsuleData is provided. This prevents blank messages in the chat log.
     if (messageType === 'capsule' && capsuleData) {
       row.content = JSON.stringify({ type: 'capsule', ...capsuleData })
     }
+
     const { data, error } = await supabase.from('messages').insert([row]).select()
     if (error) throw error
     // Notify recipient (fire-and-forget)
@@ -266,10 +327,21 @@ export const getConversations = async (userId) => {
       const otherUser = profilesById[otherId] || { id: otherId, display_name: 'User', avatar_url: null }
 
       if (!convMap.has(otherId)) {
+        // FIX: For capsule messages, show a friendlier preview instead of raw JSON
+        let preview = msg.content || ''
+        try {
+          const parsed = JSON.parse(preview)
+          if (parsed?.type === 'capsule') {
+            preview = `📦 Time Capsule: ${parsed.title || 'Untitled'}`
+          }
+        } catch (_) {
+          // not JSON — use as-is
+        }
+
         convMap.set(otherId, {
           user_id: otherId,
           user: otherUser,
-          last_message: msg.content,
+          last_message: preview,
           last_message_at: msg.created_at,
           unread: !msg.read_at && msg.recipient_id === userId,
         })

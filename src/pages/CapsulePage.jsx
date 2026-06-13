@@ -154,11 +154,17 @@ function CapsulePage() {
   if (loading)  return <LoadingScreen />;
   if (errorMsg) return <ErrorScreen message={errorMsg} />;
 
+  // FIX: resolve display names here so both locked and unlocked views
+  // always receive clean, UUID-free strings.
+  const recipientName  = getRecipientDisplayName(capsule, "Someone special");
+  const recipientEmail = getRecipientEmail(capsule);
+  const capsuleSlug    = capsule.slug || slug;
+
   return (
     <div className="cp-root">
       {/* Floating share button — always visible */}
       <div className="cp-share-fab">
-        <ShareButton slug={capsule.slug || slug} title={capsule.title} />
+        <ShareButton slug={capsuleSlug} title={capsule.title} />
       </div>
 
       {unlocked ? (
@@ -168,11 +174,12 @@ function CapsulePage() {
           unlockDate={capsule.unlock_date}
           onUnlock={handleUnlock}
           capsuleTitle={capsule.title}
-          senderName={capsule.sender_name}
-          recipientName={getRecipientDisplayName(capsule)}
-          recipientEmail={getRecipientEmail(capsule)}
+          senderName={capsule.sender_name || "Someone special"}
+          recipientName={recipientName}
+          recipientEmail={recipientEmail}
           hint={capsule.hint || null}
           coverImage={capsule.cover_image || null}
+          slug={capsuleSlug}
         />
       )}
     </div>

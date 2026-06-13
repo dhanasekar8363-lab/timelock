@@ -120,7 +120,6 @@ function calcTimeLeft(unlockDate) {
 /* ── Build the shareable link ── */
 function buildShareLink(slug) {
   if (!slug) return window.location.href;
-  // Web URL — works in browser and can be converted to deep link on the native side
   const origin = window.location.origin;
   return `${origin}/capsule/${slug}`;
 }
@@ -133,13 +132,17 @@ function LockedCapsule({
 
   /* Display props */
   capsuleTitle = "Time Capsule",
-  senderName = "Someone special",
-  recipientName = "you",
+  // FIX: default to empty string, not "you" or "Someone special".
+  // CapsulePage already resolves these via getRecipientDisplayName() and
+  // passes the resolved value — a hardcoded default here would override
+  // legitimate data with a placeholder if the prop were ever undefined.
+  senderName    = "",
+  recipientName = "",
   recipientEmail = "",
   hint = null,
   coverImage = null,
 
-  /* Share prop — passed from CapsuleViewer */
+  /* Share prop — passed from CapsulePage */
   slug = null,
 }) {
   const [timeLeft, setTimeLeft] = useState(calcTimeLeft(unlockDate));
@@ -190,6 +193,11 @@ function LockedCapsule({
     }
   };
 
+  // FIX: Compute safe display values — never render an empty string or UUID.
+  // These resolve at render time so the template stays clean.
+  const displaySender    = senderName    || "Someone special";
+  const displayRecipient = recipientName || "You";
+
   return (
     <div
       className="locked-page"
@@ -199,7 +207,7 @@ function LockedCapsule({
         <div className={`locked-content${visible ? " locked-content--visible" : ""}`}>
 
           {/* ── Sender label ─────────────────── */}
-          <p className="lc-sender">From: {senderName || "Someone special"}</p>
+          <p className="lc-sender">From: {displaySender}</p>
 
           {/* ── Floating lock ────────────────── */}
           <div className="lc-lock-wrapper">
@@ -239,7 +247,8 @@ function LockedCapsule({
           <div className="lc-info-row">
             <span className="lc-info-icon">👤</span>
             <div className="lc-info-body">
-              <span className="lc-info-primary">{recipientName || "you"}</span>
+              {/* FIX: use resolved displayRecipient — never raw UUID or empty string */}
+              <span className="lc-info-primary">{displayRecipient}</span>
               {recipientEmail && (
                 <span className="lc-info-secondary">{recipientEmail}</span>
               )}
@@ -276,7 +285,7 @@ function LockedCapsule({
             {notifySet ? "✅  Notification Set!" : "Notify Me  🔔"}
           </button>
 
-          {/* ── Share button ─────────────────── */}
+          {/* ── Share button — always render when slug is provided ── */}
           {slug && (
             <button
               className="lc-btn lc-btn--share"
