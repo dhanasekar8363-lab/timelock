@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { supabase } from "../services/supabase";
+import { supabase, getUnreadNotificationCount } from "../services/supabase";
 import BottomNav from "../components/BottomNav";
 import homeBg from "../assets/backgrounds/home-bg.jpg";
 import coverLove       from "../covers/love.png";
@@ -43,6 +43,7 @@ function Home() {
   const [deleting, setDeleting]         = useState(false);
   const [openMenuId, setOpenMenuId]     = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [unreadCount, setUnreadCount]     = useState(0);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -50,6 +51,40 @@ function Home() {
     supabase.auth.getUser().then(({ data }) => {
       setCurrentUserId(data?.user?.id ?? null);
     });
+  }, []);
+
+  // ── Notification bell — fetch count + live updates ────────────────────────
+  useEffect(() => {
+    let channel = null;
+
+    const initBell = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (!data?.user) return;
+      const userId = data.user.id;
+
+      const { count } = await getUnreadNotificationCount(userId);
+      setUnreadCount(count);
+
+      channel = supabase
+        .channel(`home-notif-bell-${userId}`)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
+          () => setUnreadCount((prev) => prev + 1)
+        )
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
+          async () => {
+            const { count: fresh } = await getUnreadNotificationCount(userId);
+            setUnreadCount(fresh);
+          }
+        )
+        .subscribe();
+    };
+
+    initBell();
+    return () => { if (channel) supabase.removeChannel(channel); };
   }, []);
 
   const fetchCapsules = async () => {
@@ -152,9 +187,23 @@ function Home() {
 
       {/* Header */}
       <div className="home-header">
-        <button className="menu-btn" aria-label="Menu">
-          <span /><span /><span />
-        </button>
+        <div className="header-left">
+          <button className="menu-btn" aria-label="Menu">
+            <span /><span /><span />
+          </button>
+          <button
+            className="notif-bell-btn"
+            onClick={() => navigate("/notifications")}
+            aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
+          >
+            🔔
+            {unreadCount > 0 && (
+              <span className="notif-bell-badge">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </button>
+        </div>
         <div className="crown-btn" aria-label="Premium">👑</div>
       </div>
 
