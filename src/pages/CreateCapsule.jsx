@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase, sendMessage } from "../services/supabase";
-import BottomNav from "../components/BottomNav";
 import "./CreateCapsule.css";
 import createBg from "../assets/backgrounds/create-bg.jpg";
 import coverLove       from "../covers/love.png";
@@ -963,9 +962,6 @@ function CreateCapsule() {
           </button>
         </div>
       )}
-
-      <div className="cc-bottom-spacer" />
-      <BottomNav />
     </div>
   );
 }
