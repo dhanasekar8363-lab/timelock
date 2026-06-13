@@ -13,22 +13,30 @@ function BottomNav() {
     { icon: "👤", label: "Profile",  path: "/profile" },
   ];
 
+  // Better route matching that handles both exact and nested routes
+  const isActive = (path) => {
+    const pathname = location.pathname;
+    // Exact match for root
+    if (path === "/" && pathname === "/") return true;
+    // Starts with for other routes (handles /create, /create?..., /search, /messages, /profile/123, etc.)
+    if (path !== "/" && pathname.startsWith(path)) return true;
+    return false;
+  };
+
   return (
     <nav className="bottom-nav">
-      <div className="nav-container">
-        {tabs.map((tab) => (
-          <button
-            key={tab.path}
-            className={`nav-item ${location.pathname === tab.path ? "nav-active" : ""}`}
-            onClick={() => navigate(tab.path)}
-            aria-label={tab.label}
-            title={tab.label}
-          >
-            <span className="nav-icon">{tab.icon}</span>
-            <span className="nav-label">{tab.label}</span>
-          </button>
-        ))}
-      </div>
+      {tabs.map((tab) => (
+        <button
+          key={tab.path}
+          className={`nav-item ${isActive(tab.path) ? "nav-active" : ""}`}
+          onClick={() => navigate(tab.path)}
+          aria-label={tab.label}
+          title={tab.label}
+        >
+          <span className="nav-icon">{tab.icon}</span>
+          <span className="nav-label">{tab.label}</span>
+        </button>
+      ))}
     </nav>
   );
 }

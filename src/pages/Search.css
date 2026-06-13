@@ -14,7 +14,7 @@
   background-position: center top;
   background-repeat: no-repeat;
   background-attachment: scroll;
-  padding: 0 0 90px;
+  padding: 0 0 calc(80px + env(safe-area-inset-bottom, 0px));
   color: var(--search-text-primary);
   overflow-x: hidden;
   font-family: 'Inter', system-ui, sans-serif;

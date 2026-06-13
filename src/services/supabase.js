@@ -56,22 +56,50 @@ export const checkIfFollowing = async (followerId, followingId) => {
 
 export const getFollowers = async (userId) => {
   try {
-    const { data, error } = await supabase.from('follows')
-      .select('follower:follower_id(id, display_name, avatar_url, bio)').eq('following_id', userId)
+    const { data: follows, error } = await supabase
+      .from('follows')
+      .select('follower_id')
+      .eq('following_id', userId)
+
     if (error) throw error
-    return { data: data?.map(f => f.follower) || [], error: null }
+    if (!follows || follows.length === 0) return { data: [], error: null }
+
+    const ids = follows.map(f => f.follower_id)
+
+    const { data: profiles, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, bio')
+      .in('id', ids)
+
+    if (profileError) throw profileError
+    return { data: profiles || [], error: null }
   } catch (error) {
+    console.error(error)
     return { data: [], error }
   }
 }
 
 export const getFollowing = async (userId) => {
   try {
-    const { data, error } = await supabase.from('follows')
-      .select('following:following_id(id, display_name, avatar_url, bio)').eq('follower_id', userId)
+    const { data: follows, error } = await supabase
+      .from('follows')
+      .select('following_id')
+      .eq('follower_id', userId)
+
     if (error) throw error
-    return { data: data?.map(f => f.following) || [], error: null }
+    if (!follows || follows.length === 0) return { data: [], error: null }
+
+    const ids = follows.map(f => f.following_id)
+
+    const { data: profiles, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, bio')
+      .in('id', ids)
+
+    if (profileError) throw profileError
+    return { data: profiles || [], error: null }
   } catch (error) {
+    console.error(error)
     return { data: [], error }
   }
 }
