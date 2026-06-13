@@ -133,9 +133,9 @@ function LockedCapsule({
 
   /* Display props */
   capsuleTitle = "Time Capsule",
-  senderName = "Dhanush 💜",
-  recipientName = "Ananya ❤️",
-  recipientEmail = "ananya@email.com",
+  senderName = "Someone special",
+  recipientName = "you",
+  recipientEmail = "",
   hint = null,
   coverImage = null,
 
@@ -199,7 +199,7 @@ function LockedCapsule({
         <div className={`locked-content${visible ? " locked-content--visible" : ""}`}>
 
           {/* ── Sender label ─────────────────── */}
-          <p className="lc-sender">From: {senderName}</p>
+          <p className="lc-sender">From: {senderName || "Someone special"}</p>
 
           {/* ── Floating lock ────────────────── */}
           <div className="lc-lock-wrapper">
@@ -239,7 +239,7 @@ function LockedCapsule({
           <div className="lc-info-row">
             <span className="lc-info-icon">👤</span>
             <div className="lc-info-body">
-              <span className="lc-info-primary">{recipientName}</span>
+              <span className="lc-info-primary">{recipientName || "you"}</span>
               {recipientEmail && (
                 <span className="lc-info-secondary">{recipientEmail}</span>
               )}

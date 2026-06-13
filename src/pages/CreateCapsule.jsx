@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { supabase, sendMessage } from "../services/supabase";
+import { supabase, sendMessage, isEmail } from "../services/supabase";
 import "./CreateCapsule.css";
 import createBg from "../assets/backgrounds/create-bg.jpg";
 import coverLove       from "../covers/love.png";
@@ -412,10 +412,33 @@ function CreateCapsule() {
     console.log("🔐 Authenticated user.id for new capsule:", currentUserId);
     // ────────────────────────────────────────────────────────────────────────
 
+    // ── Resolve recipient identity ───────────────────────────────────────────
+    // - selectedUserId / selectedUserName come from the username search and
+    //   refer to a real TimeLock account → receiver_id + receiver_name.
+    // - receiverName (manual entry) is free text. If it happens to look like
+    //   an email address we store it as receiver_email; otherwise it's just
+    //   a display name → receiver_name.
+    // receiver_email must NEVER hold a UUID or a plain display name.
+    const manualReceiverIsEmail = !selectedUserId && isEmail(receiverName);
+
+    const recipientId =
+      selectedUserId || null;
+
+    const recipientName =
+      selectedUserName ||
+      (!manualReceiverIsEmail ? receiverName.trim() : "") ||
+      null;
+
+    const recipientEmail =
+      manualReceiverIsEmail ? receiverName.trim() : null;
+    // ──────────────────────────────────────────────────────────────────────────
+
     const payload = {
       sender_id:      currentUserId,   // ← belt-and-suspenders for RLS policy
       sender_name:    senderName,
-      receiver_email: selectedUserId || receiverName,
+      receiver_id:    recipientId,     // real TimeLock user, if any — powers the Received tab
+      receiver_name:  recipientName,   // human-readable "To:" — never a UUID
+      receiver_email: recipientEmail,  // real email only, or null
       title:          title,
       message:        message,
       hint:           hint,
@@ -453,11 +476,11 @@ function CreateCapsule() {
           const { data: authData } = await supabase.auth.getUser();
           const senderId = authData?.user?.id;
           if (senderId) {
-            const capsuleContent = JSON.stringify({
-              type: "capsule", id: data[0].id, title: data[0].title,
+            const capsuleData = {
+              id: data[0].id, title: data[0].title,
               slug: data[0].slug, cover_type: data[0].cover_type, unlock_date: data[0].unlock_date,
-            });
-            await sendMessage(senderId, selectedUserId, capsuleContent);
+            };
+            await sendMessage(senderId, selectedUserId, "", "capsule", capsuleData);
           }
         } catch (msgErr) { console.error("Error sending capsule message:", msgErr); }
         navigate(`/messages?userId=${selectedUserId}&userName=${encodeURIComponent(selectedUserName || "User")}`);
@@ -480,11 +503,11 @@ function CreateCapsule() {
         const { data: authData } = await supabase.auth.getUser();
         const senderId = authData?.user?.id;
         if (senderId) {
-          const capsuleContent = JSON.stringify({
-            type: "capsule", id: data[0].id, title: data[0].title,
+          const capsuleData = {
+            id: data[0].id, title: data[0].title,
             slug: data[0].slug, cover_type: data[0].cover_type, unlock_date: data[0].unlock_date,
-          });
-          await sendMessage(senderId, selectedUserId, capsuleContent);
+          };
+          await sendMessage(senderId, selectedUserId, "", "capsule", capsuleData);
         }
       } catch (msgErr) { console.error("Error sending capsule message:", msgErr); }
       navigate(`/messages?userId=${selectedUserId}&userName=${encodeURIComponent(selectedUserName || "User")}`);

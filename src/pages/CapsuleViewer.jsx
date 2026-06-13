@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "../services/supabase";
+import { supabase, getRecipientDisplayName, getRecipientEmail } from "../services/supabase";
 import LockedCapsule from "./LockedCapsule";
 import UnlockedCapsule from "./UnlockedCapsule";
 
@@ -107,8 +107,8 @@ function CapsuleViewer() {
       onUnlock={handleUnlock}
       capsuleTitle={capsule.title}
       senderName={capsule.sender_name || capsule.senderName}
-      recipientName={capsule.receiver_name || capsule.receiverName || ""}
-      recipientEmail={capsule.receiver_email || capsule.receiverEmail || ""}
+      recipientName={getRecipientDisplayName(capsule)}
+      recipientEmail={getRecipientEmail(capsule)}
       hint={capsule.hint || null}
       coverImage={capsule.cover_image || capsule.coverImage || null}
       slug={capsule.slug}

@@ -17,6 +17,77 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
   },
 })
 
+// ==================== CAPSULE IDENTITY MODEL ====================
+//
+// The `capsules` table uses the following columns to track ownership
+// and recipients. This is the single source of truth — keep all
+// capsule-related code consistent with this model:
+//
+//   sender_id      uuid  — auth user who CREATED the capsule (owner).
+//   sender_name    text  — display name of the sender, free text,
+//                           shown as "From:" on the capsule.
+//   receiver_id    uuid  — auth user id of the recipient, IF the
+//                           recipient is a registered TimeLock user.
+//                           Used to show the capsule in their
+//                           "Received" tab. May be null for capsules
+//                           sent to people without an account.
+//   receiver_name  text  — human-readable name of the recipient,
+//                           shown as "To:" on the capsule. Free text,
+//                           NEVER a UUID.
+//   receiver_email text  — the recipient's actual email address, if
+//                           known. NEVER a UUID and NEVER a display
+//                           name — leave it null if no real email is
+//                           available.
+//
+// NOTE: if `receiver_name` does not exist yet on your `capsules`
+// table, run this once in the Supabase SQL editor:
+//
+//   ALTER TABLE public.capsules ADD COLUMN IF NOT EXISTS receiver_name text;
+//
+// Also make sure your RLS SELECT policy on `capsules` allows a user
+// to read capsules where they are EITHER the sender or the receiver,
+// e.g.:
+//
+//   (auth.uid() = sender_id) OR (auth.uid() = receiver_id)
+
+// A v4-style UUID, e.g. "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+export const isUUID = (value) =>
+  typeof value === 'string' && UUID_RE.test(value.trim())
+
+export const isEmail = (value) =>
+  typeof value === 'string' && EMAIL_RE.test(value.trim())
+
+// Returns a human-friendly recipient name for display — NEVER a UUID.
+// Prefers receiver_name, then falls back to receiver_email only if it
+// isn't a UUID/email (i.e. it was actually used as a free-text name),
+// and finally to a generic fallback.
+export const getRecipientDisplayName = (capsule, fallback = 'Someone special') => {
+  if (!capsule) return fallback
+  if (capsule.receiver_name && !isUUID(capsule.receiver_name)) {
+    return capsule.receiver_name
+  }
+  if (
+    capsule.receiver_email &&
+    !isUUID(capsule.receiver_email) &&
+    !isEmail(capsule.receiver_email)
+  ) {
+    return capsule.receiver_email
+  }
+  return fallback
+}
+
+// Returns the recipient's email ONLY if it's a real email address.
+export const getRecipientEmail = (capsule) => {
+  if (!capsule) return ''
+  if (capsule.receiver_email && isEmail(capsule.receiver_email)) {
+    return capsule.receiver_email
+  }
+  return ''
+}
+
 // ==================== FOLLOW FUNCTIONS ====================
 
 export const followUser = async (followerId, followingId) => {
@@ -249,35 +320,39 @@ export const markMessageAsRead = async (messageId) => {
   }
 }
 
-// Get user's own capsules for sharing
+// Get capsules CREATED BY this user (i.e. they are the sender/owner).
+// Used for things like "share a capsule you made" pickers.
 export const getMyCapsules = async (userId) => {
   try {
-    // Try with user_id field first
     const { data, error } = await supabase
       .from('capsules')
-      .select('id, title, slug, cover_type, unlock_date, created_at')
-      .eq('user_id', userId)
+      .select('id, title, slug, cover_type, unlock_date, created_at, sender_id, receiver_id, receiver_name')
+      .eq('sender_id', userId)
       .order('created_at', { ascending: false })
       .limit(20)
 
-    if (error && error.code !== 'PGRST116') {
-      // If no user_id column, fall back to sender_name match via profiles
-      const { data: profile } = await supabase
-        .from('profiles').select('display_name').eq('id', userId).single()
-      if (profile) {
-        const { data: caps, error: e2 } = await supabase
-          .from('capsules')
-          .select('id, title, slug, cover_type, unlock_date, created_at')
-          .eq('sender_name', profile.display_name)
-          .order('created_at', { ascending: false })
-          .limit(20)
-        if (e2) throw e2
-        return { data: caps || [], error: null }
-      }
-    }
+    if (error) throw error
     return { data: data || [], error: null }
   } catch (error) {
     console.error('Error getting capsules:', error)
+    return { data: [], error }
+  }
+}
+
+// Get capsules SHARED WITH this user (i.e. they are the recipient).
+// Used to populate the "Received" tab.
+export const getReceivedCapsules = async (userId) => {
+  try {
+    const { data, error } = await supabase
+      .from('capsules')
+      .select('*')
+      .eq('receiver_id', userId)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return { data: data || [], error: null }
+  } catch (error) {
+    console.error('Error getting received capsules:', error)
     return { data: [], error }
   }
 }

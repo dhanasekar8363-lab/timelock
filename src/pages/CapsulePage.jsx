@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "../services/supabase";
+import { supabase, getRecipientDisplayName, getRecipientEmail } from "../services/supabase";
 import LockedCapsule from "./LockedCapsule";
 import UnlockedCapsule from "./UnlockedCapsule";
 import "./CapsulePage.css";
@@ -169,8 +169,8 @@ function CapsulePage() {
           onUnlock={handleUnlock}
           capsuleTitle={capsule.title}
           senderName={capsule.sender_name}
-          recipientName={capsule.receiver_name || ""}
-          recipientEmail={capsule.receiver_email || ""}
+          recipientName={getRecipientDisplayName(capsule)}
+          recipientEmail={getRecipientEmail(capsule)}
           hint={capsule.hint || null}
           coverImage={capsule.cover_image || null}
         />

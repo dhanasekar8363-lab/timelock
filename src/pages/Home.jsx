@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { supabase, getUnreadNotificationCount } from "../services/supabase";
+import { supabase, getUnreadNotificationCount, getRecipientDisplayName } from "../services/supabase";
 import BottomNav from "../components/BottomNav";
 import homeBg from "../assets/backgrounds/home-bg.jpg";
 import coverLove       from "../covers/love.png";
@@ -48,9 +48,6 @@ function Home() {
 
   useEffect(() => {
     fetchCapsules();
-    supabase.auth.getUser().then(({ data }) => {
-      setCurrentUserId(data?.user?.id ?? null);
-    });
   }, []);
 
   // ── Notification bell — fetch count + live updates ────────────────────────
@@ -97,13 +94,17 @@ function Home() {
       setLoading(false);
       return;
     }
+    setCurrentUserId(user.id);
     console.log("📦 Fetching capsules for user:", user.id);
     // ────────────────────────────────────────────────────────────────────────
 
+    // A capsule belongs on this screen if the user CREATED it (sender_id)
+    // or it was SHARED WITH them (receiver_id) — this powers both the
+    // "Sent" and "Received" tabs.
     const { data, error } = await supabase
       .from("capsules")
       .select("*")
-      .or(`user_id.eq.${user.id},sender_id.eq.${user.id}`)
+      .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -129,10 +130,10 @@ function Home() {
       }
 
       const capsule = capsules.find((c) => c.id === capsuleId);
-      console.log("👤 user.id        :", user.id);
-      console.log("🫙 capsule.id     :", capsule?.id);
-      console.log("🫙 capsule.user_id:", capsule?.user_id);
+      console.log("👤 user.id          :", user.id);
+      console.log("🫙 capsule.id       :", capsule?.id);
       console.log("🫙 capsule.sender_id:", capsule?.sender_id);
+      console.log("🫙 capsule.receiver_id:", capsule?.receiver_id);
 
       const { data, error } = await supabase
         .from("capsules")
@@ -153,7 +154,7 @@ function Home() {
         console.warn(
           `⚠️ No rows deleted — RLS blocked the operation.\n` +
           `   Ensure your Supabase DELETE policy is:\n` +
-          `   (auth.uid() = user_id) OR (auth.uid() = sender_id)`
+          `   (auth.uid() = sender_id)`
         );
         alert("Delete blocked by Supabase RLS. Check the browser console for details.");
         return;
@@ -171,8 +172,13 @@ function Home() {
   };
   // ──────────────────────────────────────────────────────────────────────────
 
-  const sentCapsules     = capsules.filter((c) => !c.is_received);
-  const receivedCapsules = capsules.filter((c) => c.is_received);
+  // "Sent" = capsules this user created. "Received" = capsules shared
+  // with this user by someone else. (A capsule a user sent to themself
+  // would show only in "Sent".)
+  const sentCapsules     = capsules.filter((c) => c.sender_id === currentUserId);
+  const receivedCapsules = capsules.filter(
+    (c) => c.receiver_id === currentUserId && c.sender_id !== currentUserId
+  );
   const displayCapsules  = activeTab === "sent" ? sentCapsules : receivedCapsules;
   const receivedCount    = receivedCapsules.length;
 
@@ -311,7 +317,11 @@ function Home() {
                   <div className="card-body">
                     <p className="card-to">
                       {activeTab === "sent" ? "To:" : "From:"}{" "}
-                      <strong>{capsule.receiver_email || capsule.title}</strong>
+                      <strong>
+                        {activeTab === "sent"
+                          ? getRecipientDisplayName(capsule, capsule.title)
+                          : (capsule.sender_name || "Someone special")}
+                      </strong>
                     </p>
                     <p className="card-opens">
                       Opens on{" "}
@@ -333,10 +343,8 @@ function Home() {
                     )}
                   </div>
 
-                  {/* ⋮ menu — only for own capsules */}
-                  {(!capsule.user_id ||
-                    capsule.user_id === currentUserId ||
-                    capsule.sender_id === currentUserId) && (
+                  {/* ⋮ menu — only for capsules this user created */}
+                  {capsule.sender_id === currentUserId && (
                     <div className="card-menu-wrap">
                       <button
                         className="card-menu-btn"
