@@ -26,6 +26,8 @@ export const followUser = async (followerId, followingId) => {
       .insert([{ follower_id: followerId, following_id: followingId, created_at: new Date().toISOString() }])
       .select()
     if (error) throw error
+    // Notify the user being followed (fire-and-forget)
+    createNotification(followingId, 'New Follower', 'Someone started following you')
     return { data, error: null }
   } catch (error) {
     return { data: null, error }
@@ -135,6 +137,8 @@ export const sendMessage = async (senderId, recipientId, content, messageType = 
     }
     const { data, error } = await supabase.from('messages').insert([row]).select()
     if (error) throw error
+    // Notify recipient (fire-and-forget)
+    createNotification(recipientId, 'New Message', 'You have a new message')
     return { data: data?.[0], error: null }
   } catch (error) {
     console.error('Error sending message:', error)
@@ -286,6 +290,8 @@ export const shareCapsule = async (capsuleId, senderId, recipientId, message = '
       .insert([{ capsule_id: capsuleId, sender_id: senderId, recipient_id: recipientId, message, created_at: new Date().toISOString() }])
       .select()
     if (error) throw error
+    // Notify recipient (fire-and-forget)
+    createNotification(recipientId, 'Capsule Shared', 'A time capsule has been shared with you')
     return { data: data?.[0], error: null }
   } catch (error) {
     return { data: null, error }
@@ -301,5 +307,68 @@ export const getSharedCapsules = async (userId) => {
     return { data: data || [], error: null }
   } catch (error) {
     return { data: [], error }
+  }
+}
+
+// ==================== NOTIFICATION FUNCTIONS ====================
+
+export const getNotifications = async (userId) => {
+  try {
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return { data: data || [], error: null }
+  } catch (error) {
+    return { data: [], error }
+  }
+}
+
+export const getUnreadNotificationCount = async (userId) => {
+  try {
+    const { count, error } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('is_read', false)
+    if (error) throw error
+    return { count: count || 0, error: null }
+  } catch (error) {
+    return { count: 0, error }
+  }
+}
+
+export const markNotificationsRead = async (userId) => {
+  try {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', userId)
+      .eq('is_read', false)
+    if (error) throw error
+    return { error: null }
+  } catch (error) {
+    return { error }
+  }
+}
+
+export const createNotification = async (userId, title, message) => {
+  try {
+    const { data, error } = await supabase
+      .from('notifications')
+      .insert([{
+        user_id: userId,
+        title,
+        message,
+        is_read: false,
+        created_at: new Date().toISOString(),
+      }])
+      .select()
+    if (error) throw error
+    return { data: data?.[0], error: null }
+  } catch (error) {
+    return { data: null, error }
   }
 }

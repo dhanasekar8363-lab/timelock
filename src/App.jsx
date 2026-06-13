@@ -12,6 +12,7 @@ import CapsuleDetail  from "./pages/CapsuleDetail";
 import CapsuleViewer  from "./pages/CapsuleViewer";
 import Messages       from "./pages/Messages";
 import Search         from "./pages/Search";
+import Notifications  from "./pages/Notifications";
 import BottomNav      from "./components/BottomNav";
 
 // Pages that should NOT show the bottom nav
@@ -38,6 +39,7 @@ const router = createHashRouter([
       { path: "/create",            element: <CreateCapsule /> },
       { path: "/search",            element: <Search /> },
       { path: "/messages",          element: <Messages /> },
+      { path: "/notifications",     element: <Notifications /> },
       { path: "/locked",            element: <LockedCapsule /> },
       { path: "/unlocked",          element: <UnlockedCapsule /> },
       { path: "/login",             element: <Login /> },
