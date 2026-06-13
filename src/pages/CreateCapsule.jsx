@@ -209,7 +209,6 @@ function CreateCapsule() {
 
   /* recipient pre-fill from URL (e.g. ?shareWith=USERID&shareWithName=USERNAME) */
   const [shareWithUserId, setShareWithUserId] = useState(null);
-  const [shareWithName, setShareWithName] = useState(null);
 
   /* wizard state */
   const [step,    setStep]    = useState(1);
@@ -254,7 +253,6 @@ function CreateCapsule() {
     const shareName = searchParams.get("shareWithName");
     if (shareWith) {
       setShareWithUserId(shareWith);
-      setShareWithName(shareName || "User");
       setSelectedUserId(shareWith);
       setSelectedUserName(shareName || "User");
     }
@@ -293,7 +291,6 @@ function CreateCapsule() {
 
   const clearShareWith = () => {
     setShareWithUserId(null);
-    setShareWithName(null);
     setSelectedUserId(null);
     setSelectedUserName("");
     setSelectedUserAvatar(null);
@@ -332,7 +329,6 @@ function CreateCapsule() {
     setSelectedUserName(user.display_name);
     setSelectedUserAvatar(user.avatar_url);
     setShareWithUserId(user.id);
-    setShareWithName(user.display_name);
     setUserSearchQuery("");
     setUserSearchResults([]);
     setShowUserDropdown(false);

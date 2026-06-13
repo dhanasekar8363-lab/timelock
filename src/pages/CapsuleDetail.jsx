@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../services/supabase";
 import Countdown from "../components/Countdown";
@@ -53,6 +53,13 @@ function CapsuleDetail() {
     // Placeholder for save logic
     console.log("Save capsule", capsule.id);
   };
+
+  // Stable waveform bar heights — computed once per capsule load, not on every render
+  const waveBarHeights = useMemo(
+    () => Array.from({ length: 28 }, (_, i) => 20 + Math.sin(i * 0.8) * 14 + Math.random() * 10),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [capsule?.id]
+  );
 
   const unlockDateDisplay = unlockTime.toLocaleDateString("en-GB", {
     day: "numeric", month: "long", year: "numeric",
@@ -250,7 +257,7 @@ function CapsuleDetail() {
                   <div
                     key={i}
                     className="cd-wave-bar"
-                    style={{ "--bar-height": `${20 + Math.sin(i * 0.8) * 14 + Math.random() * 10}px` }}
+                    style={{ "--bar-height": `${waveBarHeights[i]}px` }}
                   />
                 ))}
               </div>

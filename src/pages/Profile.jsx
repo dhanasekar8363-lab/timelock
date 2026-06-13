@@ -15,13 +15,16 @@ import homeBg from "../assets/backgrounds/home-bg.jpg";
 import "./Profile.css";
 
 /* ─── Level System ─── */
+// Level 1 = 0–4  | Level 2 = 5–9  | Level 3 = 10–19
+// Level 4 = 20–39 | Level 5 = 40–79 | Level 6+ = extended
 const LEVEL_THRESHOLDS = [0, 5, 10, 20, 40, 80, 150, 280, 500, 900, 1500, 2500, 4000, 6500, 10000];
 const LEVEL_TITLES = [
-  "Time Starter","Time Starter","Memory Keeper","Memory Keeper",
-  "Future Explorer","Future Explorer","Time Traveler","Time Traveler",
-  "Time Traveler","Chrono Master","Chrono Master","Chrono Master",
-  "Chrono Master","Chrono Master","Time Lord",
+  "Time Starter", "Time Starter", "Memory Keeper", "Memory Keeper",
+  "Future Explorer", "Future Explorer", "Time Traveler", "Time Traveler",
+  "Time Traveler", "Chrono Master", "Chrono Master", "Chrono Master",
+  "Chrono Master", "Chrono Master", "Time Lord",
 ];
+const LEVEL_ICONS = ["🌱","🌱","📖","📖","🚀","🚀","⌛","⌛","⌛","⚡","⚡","⚡","⚡","⚡","👑"];
 
 function getLevel(count) {
   let lvl = 1;
@@ -29,43 +32,68 @@ function getLevel(count) {
     if (count >= LEVEL_THRESHOLDS[i]) lvl = i + 1; else break;
   }
   lvl = Math.min(lvl, 15);
-  const cur = LEVEL_THRESHOLDS[lvl - 1];
+  const cur  = LEVEL_THRESHOLDS[lvl - 1];
   const next = lvl < 15 ? LEVEL_THRESHOLDS[lvl] : cur + 1;
-  const pct = next === cur ? 100 : Math.round(((count - cur) / (next - cur)) * 100);
-  const nextTitle = lvl < 15 ? LEVEL_TITLES[lvl] : "Time Lord";
+  const pct  = next === cur ? 100 : Math.round(((count - cur) / (next - cur)) * 100);
   return {
-    level: lvl,
-    title: LEVEL_TITLES[lvl - 1],
-    progress: Math.min(100, Math.max(0, pct)),
-    nextTitle,
+    level:      lvl,
+    icon:       LEVEL_ICONS[lvl - 1],
+    title:      LEVEL_TITLES[lvl - 1],
+    nextTitle:  lvl < 15 ? LEVEL_TITLES[lvl] : "Time Lord",
+    nextIcon:   lvl < 15 ? LEVEL_ICONS[lvl]  : "👑",
+    progress:   Math.min(100, Math.max(0, pct)),
+    capsuleCur: cur,
     capsuleNext: next,
+    xpEarned:   count - cur,
+    xpNeeded:   next - cur,
   };
 }
 
 /* ─── Achievements ─── */
+const ALL_ACHIEVEMENTS = [
+  {
+    id: "first_capsule",  icon: "⭐", label: "First Capsule",
+    desc: "Create your first capsule",
+    color: "#a855f7", total: 1,
+    check: (stats) => stats.created,
+  },
+  {
+    id: "ten_locked",     icon: "🔐", label: "Vault Builder",
+    desc: "Lock 10 capsules",
+    color: "#f59e0b", total: 10,
+    check: (stats) => stats.locked,
+  },
+  {
+    id: "future_master",  icon: "🚀", label: "Future Master",
+    desc: "Create 50 capsules",
+    color: "#7c5cff", total: 50,
+    check: (stats) => stats.created,
+  },
+  {
+    id: "connector",      icon: "🤝", label: "Connector",
+    desc: "Follow someone",
+    color: "#ec4899", total: 1,
+    check: (_, followCounts) => followCounts.following,
+  },
+  {
+    id: "popular",        icon: "🌟", label: "Popular",
+    desc: "Get 5 followers",
+    color: "#06b6d4", total: 5,
+    check: (_, followCounts) => followCounts.followers,
+  },
+  {
+    id: "time_hoarder",   icon: "💎", label: "Time Hoarder",
+    desc: "Reach 100 capsules",
+    color: "#22c55e", total: 100,
+    check: (stats) => stats.created,
+  },
+];
+
 function computeAchievements(stats, followCounts) {
-  return [
-    {
-      id: "first_capsule", icon: "⭐", label: "First Capsule",
-      color: "#a855f7", unlocked: stats.created >= 1,
-      progress: Math.min(1, stats.created), total: 1,
-    },
-    {
-      id: "first_message", icon: "💌", label: "First Message",
-      color: "#ec4899", unlocked: followCounts.following >= 1,
-      progress: Math.min(1, followCounts.following), total: 1,
-    },
-    {
-      id: "ten_locked", icon: "🔐", label: "10 Locked",
-      color: "#f59e0b", unlocked: stats.locked >= 10,
-      progress: Math.min(10, stats.locked), total: 10,
-    },
-    {
-      id: "future_master", icon: "🚀", label: "Future Master",
-      color: "#7c5cff", unlocked: stats.created >= 50,
-      progress: Math.min(50, stats.created), total: 50,
-    },
-  ];
+  return ALL_ACHIEVEMENTS.map((a) => {
+    const progress = Math.min(a.total, a.check(stats, followCounts));
+    return { ...a, progress, unlocked: progress >= a.total };
+  });
 }
 
 /* ─── Relative time ─── */
@@ -82,48 +110,26 @@ function relativeTime(dateStr) {
 
 /* ─── Main Component ─── */
 export default function Profile() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { userId } = useParams();
+  const navigate    = useNavigate();
+  const location    = useLocation();
+  const { userId }  = useParams();
   const { user, loading } = useAuth();
 
-  const [profile, setProfile] = useState(null);
-  const [stats, setStats] = useState({ created: 0, locked: 0, opened: 0, pending: 0 });
+  const [profile,      setProfile]      = useState(null);
+  const [stats,        setStats]        = useState({ created: 0, locked: 0, opened: 0, pending: 0 });
   const [statsLoading, setStatsLoading] = useState(false);
-  const [statsError, setStatsError] = useState(null);
-  const [isFollowing, setIsFollowing] = useState(false);
+  const [statsError,   setStatsError]   = useState(null);
+  const [isFollowing,  setIsFollowing]  = useState(false);
   const [followCounts, setFollowCounts] = useState({ followers: 0, following: 0 });
-  const [followLoading, setFollowLoading] = useState(false);
+  const [followLoading,setFollowLoading]= useState(false);
   const [isOwnProfile, setIsOwnProfile] = useState(true);
   const [recentActivity, setRecentActivity] = useState([]);
 
   // Follow sheet
-  const [activeList, setActiveList] = useState(null);
-  const [listUsers, setListUsers] = useState([]);
-  const [listLoading, setListLoading] = useState(false);
+  const [activeList,    setActiveList]    = useState(null);
+  const [listUsers,     setListUsers]     = useState([]);
+  const [listLoading,   setListLoading]   = useState(false);
   const [listFollowMap, setListFollowMap] = useState({});
-
-  const viewingUserId = userId || user?.id;
-
-  useEffect(() => {
-    if (loading) return;
-    if (!user && !userId) { navigate("/login"); return; }
-
-    const fetchData = async () => {
-      const targetUserId = userId || user?.id;
-      setIsOwnProfile(targetUserId === user?.id);
-      await loadProfile(targetUserId);
-      await loadStats(targetUserId);
-      await loadRecentActivity(targetUserId);
-      const { followers, following: followingCount } = await getFollowCounts(targetUserId);
-      setFollowCounts({ followers, following: followingCount });
-      if (userId && user && userId !== user.id) {
-        const { isFollowing: following } = await checkIfFollowing(user.id, userId);
-        setIsFollowing(following);
-      }
-    };
-    fetchData();
-  }, [location, userId, navigate, user, loading]);
 
   const loadProfile = async (targetUserId) => {
     try {
@@ -143,8 +149,8 @@ export default function Profile() {
         supabase.from("capsules").select("*", { count: "exact", head: true }).eq("sender_id", targetUserId).lte("unlock_date", now),
       ]);
       const created = r1.count || 0;
-      const locked = r2.count || 0;
-      const opened = r3.count || 0;
+      const locked  = r2.count || 0;
+      const opened  = r3.count || 0;
       setStats({ created, locked, opened, pending: locked });
     } catch (e) {
       console.error(e);
@@ -171,6 +177,27 @@ export default function Profile() {
     } catch (e) { console.error(e); }
   };
 
+  useEffect(() => {
+    if (loading) return;
+    if (!user && !userId) { navigate("/login"); return; }
+
+    const fetchData = async () => {
+      const targetUserId = userId || user?.id;
+      setIsOwnProfile(targetUserId === user?.id);
+      await loadProfile(targetUserId);
+      await loadStats(targetUserId);
+      await loadRecentActivity(targetUserId);
+      const { followers, following: followingCount } = await getFollowCounts(targetUserId);
+      setFollowCounts({ followers, following: followingCount });
+      if (userId && user && userId !== user.id) {
+        const { isFollowing: following } = await checkIfFollowing(user.id, userId);
+        setIsFollowing(following);
+      }
+    };
+    fetchData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location, userId, navigate, user, loading]);
+
   const handleFollow = async () => {
     if (!userId || !user) return;
     try {
@@ -191,25 +218,18 @@ export default function Profile() {
   };
 
   const openFollowList = async (type) => {
-    // Capture the target user at call time so it can't drift if params change mid-flight
     const targetId = userId || user?.id;
     setActiveList(type);
     setListLoading(true);
     setListUsers([]);
     setListFollowMap({});
-
     try {
       const { data, error } = type === "followers"
         ? await getFollowers(targetId)
         : await getFollowing(targetId);
-
       if (error) throw error;
-
       const users = data || [];
       setListUsers(users);
-
-      // Batch-check which of these users the current viewer already follows
-      // (single query instead of N serial requests)
       if (user && users.length > 0) {
         const candidateIds = users.map(u => u.id).filter(id => id !== user.id);
         const { data: followingSet } = await getFollowingIds(user.id, candidateIds);
@@ -240,38 +260,41 @@ export default function Profile() {
     } catch (e) { console.error(e); alert("Failed to update follow status"); }
   };
 
-  const handleListMessage = (targetUser) => {
+  const handleListMessage  = (targetUser) => {
     closeFollowList();
     navigate(`/messages?userId=${targetUser.id}&userName=${encodeURIComponent(targetUser.display_name || "User")}`);
   };
-  const handleSendMessage = () => { if (userId && profile) navigate(`/messages?userId=${userId}&userName=${profile.display_name}`); };
-  const handleSendCapsule = () => { if (userId && profile) navigate(`/create?shareWith=${userId}&shareWithName=${profile.display_name}`); };
+  const handleSendMessage  = () => { if (userId && profile) navigate(`/messages?userId=${userId}&userName=${profile.display_name}`); };
+  const handleSendCapsule  = () => { if (userId && profile) navigate(`/create?shareWith=${userId}&shareWithName=${profile.display_name}`); };
   const handleShareProfile = () => {
     if (navigator.share) navigator.share({ title: profile?.display_name, url: window.location.href });
     else { navigator.clipboard?.writeText(window.location.href); alert("Profile link copied!"); }
   };
   const logout = async () => { await supabase.auth.signOut(); navigate("/login"); };
 
-  /* derived */
-  const { level, title: levelTitle, progress: levelProgress, nextTitle: levelNextTitle, capsuleNext } = getLevel(stats.created);
+  /* ── Derived state ── */
+  const levelInfo    = getLevel(stats.created);
   const achievements = computeAchievements(stats, followCounts);
-  const avatarSrc = profile?.avatar_url
+  const unlockedCount = achievements.filter(a => a.unlocked).length;
+  const avatarSrc    = profile?.avatar_url
     || (isOwnProfile && user?.user_metadata?.picture)
     || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.display_name || "User")}&background=7c5cff&color=fff&size=200`;
 
+  const statCards = [
+    { key: "created", icon: "📦", label: "CREATED",  sub: "Total",   color: "#a855f7", track: "#a855f722" },
+    { key: "locked",  icon: "🔒", label: "LOCKED",   sub: "Active",  color: "#f59e0b", track: "#f59e0b22" },
+    { key: "opened",  icon: "🔓", label: "OPENED",   sub: "Unlocked",color: "#22c55e", track: "#22c55e22" },
+    { key: "pending", icon: "⏳", label: "PENDING",  sub: "Waiting", color: "#7c5cff", track: "#7c5cff22" },
+  ];
+
   if (loading) return (
-    <div className="tl-page"><div className="tl-loader"><div className="tl-dots"><span/><span/><span/></div></div></div>
+    <div className="tl-page">
+      <div className="tl-loader"><div className="tl-dots"><span/><span/><span/></div></div>
+    </div>
   );
   if (!user && !userId) return (
     <div className="tl-page"><p style={{color:"#fff",textAlign:"center",paddingTop:"40vh"}}>Please log in.</p></div>
   );
-
-  const statCards = [
-    { key: "created", icon: "📦", label: "CREATED",  sub: "Capsules", color: "#a855f7", track: "#a855f722" },
-    { key: "locked",  icon: "🔒", label: "LOCKED",   sub: "Capsules", color: "#f59e0b", track: "#f59e0b22" },
-    { key: "opened",  icon: "🔓", label: "OPENED",   sub: "Capsules", color: "#22c55e", track: "#22c55e22" },
-    { key: "pending", icon: "⏳", label: "PENDING",  sub: "Capsules", color: "#7c5cff", track: "#7c5cff22" },
-  ];
 
   return (
     <div className="tl-page" style={{ backgroundImage: `url(${homeBg})` }}>
@@ -279,7 +302,7 @@ export default function Profile() {
 
       <div className="tl-scroll">
 
-        {/* TOP NAV */}
+        {/* ── TOP NAV ── */}
         <div className="tl-topnav">
           {isOwnProfile ? (
             <button className="tl-nav-btn" onClick={() => navigate("/settings")} aria-label="Settings">
@@ -303,7 +326,7 @@ export default function Profile() {
           </button>
         </div>
 
-        {/* HERO */}
+        {/* ── HERO ── */}
         <div className="tl-hero">
           <div className="tl-avatar-ring">
             <div className="tl-avatar-glow" />
@@ -311,10 +334,12 @@ export default function Profile() {
               className="tl-avatar"
               src={avatarSrc}
               alt="Avatar"
-              onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.display_name || "User")}&background=7c5cff&color=fff&size=200`; }}
+              onError={(e) => {
+                e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.display_name || "User")}&background=7c5cff&color=fff&size=200`;
+              }}
             />
             {isOwnProfile && (
-              <button className="tl-edit-float" onClick={() => navigate("/profile/edit")} aria-label="Edit">
+              <button className="tl-edit-float" onClick={() => navigate("/profile/edit")} aria-label="Edit profile">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -329,9 +354,10 @@ export default function Profile() {
           </h1>
 
           <div className="tl-level-badge">
-            <span className="tl-lv-num">Lv. {level}</span>
+            <span className="tl-lv-icon">{levelInfo.icon}</span>
+            <span className="tl-lv-num">Lv.{levelInfo.level}</span>
             <span className="tl-lv-sep">·</span>
-            <span className="tl-lv-title">{levelTitle}</span>
+            <span className="tl-lv-title">{levelInfo.title}</span>
           </div>
 
           {isOwnProfile && <p className="tl-email">{user?.email}</p>}
@@ -339,7 +365,7 @@ export default function Profile() {
           <p className="tl-tagline">✦ Messages to the future ✦</p>
         </div>
 
-        {/* SOCIAL STATS */}
+        {/* ── SOCIAL STATS ── */}
         <div className="tl-social-row">
           <div className="tl-social-card" onClick={() => openFollowList("followers")}>
             <div className="tl-social-icon tl-si-purple">
@@ -366,36 +392,71 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* XP LEVEL PROGRESSION */}
+        {/* ── XP LEVEL PROGRESSION ── */}
         <div className="tl-xp-card">
-          <div className="tl-xp-top">
-            <div className="tl-xp-badge-row">
-              <span className="tl-xp-lv-tag">Lv.{level}</span>
-              <span className="tl-xp-title-text">{levelTitle}</span>
+          {/* Level header row */}
+          <div className="tl-xp-header">
+            <div className="tl-xp-left">
+              <div className="tl-xp-orb">{levelInfo.icon}</div>
+              <div className="tl-xp-meta">
+                <div className="tl-xp-badge-row">
+                  <span className="tl-xp-lv-tag">Lv.{levelInfo.level}</span>
+                  <span className="tl-xp-title-text">{levelInfo.title}</span>
+                </div>
+                {levelInfo.level < 15 && (
+                  <span className="tl-xp-next-label">
+                    → {levelInfo.nextIcon} {levelInfo.nextTitle} at {levelInfo.capsuleNext} capsules
+                  </span>
+                )}
+              </div>
             </div>
-            {level < 15 && (
-              <span className="tl-xp-next-label">
-                Next: {levelNextTitle}
-              </span>
-            )}
+            <div className="tl-xp-pct-badge">
+              {statsLoading ? "—" : `${levelInfo.progress}%`}
+            </div>
           </div>
-          <div className="tl-xp-bar-track" role="progressbar" aria-valuenow={levelProgress} aria-valuemin={0} aria-valuemax={100}>
+
+          {/* Progress bar */}
+          <div
+            className="tl-xp-bar-track"
+            role="progressbar"
+            aria-valuenow={levelInfo.progress}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
             <div
               className="tl-xp-bar-fill"
-              style={{ width: statsLoading ? "0%" : `${levelProgress}%` }}
+              style={{ width: statsLoading ? "0%" : `${levelInfo.progress}%` }}
             />
           </div>
+
+          {/* XP counts row */}
           <div className="tl-xp-bottom">
             <span className="tl-xp-count">
-              {statsLoading ? "— / —" : `${stats.created} / ${capsuleNext}`} Capsules
+              {statsLoading
+                ? "— / —"
+                : `${levelInfo.xpEarned} / ${levelInfo.xpNeeded} XP`}
             </span>
-            <span className="tl-xp-pct">
-              {statsLoading ? "—" : `${levelProgress}%`}
+            <span className="tl-xp-total-capsules">
+              {statsLoading ? "" : `${stats.created} capsules total`}
             </span>
+          </div>
+
+          {/* Mini level milestones */}
+          <div className="tl-xp-milestones">
+            {[1,2,3,4,5].map((lv) => {
+              const done = levelInfo.level > lv;
+              const active = levelInfo.level === lv;
+              return (
+                <div key={lv} className={`tl-xp-ms ${done ? "tl-xp-ms-done" : ""} ${active ? "tl-xp-ms-active" : ""}`}>
+                  <div className="tl-xp-ms-dot">{done ? "✓" : lv}</div>
+                  <span className="tl-xp-ms-label">Lv.{lv}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* CAPSULE STATS GRID */}
+        {/* ── CAPSULE STATS GRID ── */}
         {statsError && <p className="tl-stats-error">{statsError}</p>}
         <div className="tl-stats-grid">
           {statCards.map(({ key, icon, label, sub, color, track }) => (
@@ -412,7 +473,9 @@ export default function Profile() {
                 <div
                   className="tl-stat-bar-fill"
                   style={{
-                    width: statsLoading || !stats.created ? "0%" : `${Math.min(100, Math.round((stats[key] / Math.max(stats.created, 1)) * 100))}%`,
+                    width: statsLoading || !stats.created
+                      ? "0%"
+                      : `${Math.min(100, Math.round((stats[key] / Math.max(stats.created, 1)) * 100))}%`,
                     background: color,
                   }}
                 />
@@ -421,49 +484,66 @@ export default function Profile() {
           ))}
         </div>
 
-        {/* ACHIEVEMENTS */}
+        {/* ── ACHIEVEMENTS ── */}
         <div className="tl-section-header">
-          <span className="tl-section-title">🏆 Achievements <span className="tl-dot-accent">✦</span></span>
-          <button className="tl-view-all">View All &rsaquo;</button>
+          <span className="tl-section-title">
+            🏆 Achievements
+            <span className="tl-ach-counter">{unlockedCount}/{achievements.length}</span>
+          </span>
+          <button className="tl-view-all">View All ›</button>
         </div>
+
+        {/* Horizontal scroll carousel */}
         <div className="tl-achievements-row">
           {achievements.map((a) => (
             <div
               key={a.id}
               className={`tl-ach-card ${a.unlocked ? "tl-ach-unlocked" : "tl-ach-locked"}`}
               style={{"--ac": a.color}}
+              title={a.desc}
             >
-              <div className="tl-ach-hex">
-                <span className="tl-ach-icon">{a.icon}</span>
-                {a.unlocked && <span className="tl-ach-glow" />}
+              {/* Glow ring for unlocked */}
+              {a.unlocked && <div className="tl-ach-glow-ring" />}
+
+              <div className="tl-ach-icon-wrap">
+                <div className="tl-ach-hex">
+                  <span className="tl-ach-icon">{a.icon}</span>
+                  {a.unlocked && <span className="tl-ach-sparkle-dot" />}
+                </div>
               </div>
+
               <span className="tl-ach-label">{a.label}</span>
+              <span className="tl-ach-desc">{a.desc}</span>
+
               {a.unlocked ? (
-                <span className="tl-ach-check">✓ Done</span>
+                <span className="tl-ach-check">✓ Unlocked</span>
               ) : (
-                <>
+                <div className="tl-ach-progress-section">
                   <div className="tl-ach-prog-track">
                     <div
                       className="tl-ach-prog-fill"
-                      style={{ width: `${Math.round((a.progress / a.total) * 100)}%`, background: a.color }}
+                      style={{
+                        width: `${Math.round((a.progress / a.total) * 100)}%`,
+                        background: a.color,
+                      }}
                     />
                   </div>
-                  <span className="tl-ach-prog-text">{a.progress}/{a.total}</span>
-                </>
+                  <span className="tl-ach-prog-text">{a.progress} / {a.total}</span>
+                </div>
               )}
             </div>
           ))}
         </div>
 
-        {/* RECENT ACTIVITY */}
+        {/* ── RECENT ACTIVITY ── */}
         <div className="tl-section-header">
           <span className="tl-section-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{marginRight:6,verticalAlign:"middle"}}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{marginRight:6,verticalAlign:"middle"}}>
               <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
             </svg>
             Recent Activity
           </span>
-          <button className="tl-view-all">View All &rsaquo;</button>
+          <button className="tl-view-all">View All ›</button>
         </div>
         <div className="tl-activity-card">
           {recentActivity.length === 0 ? (
@@ -481,13 +561,14 @@ export default function Profile() {
           ))}
         </div>
 
-        {/* ACTION BUTTONS */}
+        {/* ── ACTION BUTTONS ── */}
         <div className="tl-actions">
           {!isOwnProfile ? (
             <>
               <button
                 className={`tl-action-btn tl-btn-primary ${isFollowing ? "tl-btn-following" : ""}`}
-                onClick={handleFollow} disabled={followLoading}
+                onClick={handleFollow}
+                disabled={followLoading}
               >
                 {followLoading ? "···" : isFollowing ? "✓ Following" : "+ Follow"}
               </button>
@@ -524,9 +605,9 @@ export default function Profile() {
           )}
         </div>
 
-      </div>
+      </div>{/* /tl-scroll */}
 
-      {/* FOLLOW SHEET */}
+      {/* ── FOLLOW SHEET ── */}
       {activeList && (
         <div className="tl-sheet-overlay" onClick={closeFollowList}>
           <div className="tl-sheet" onClick={(e) => e.stopPropagation()}>
