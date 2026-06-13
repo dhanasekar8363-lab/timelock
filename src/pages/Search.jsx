@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase, followUser, unfollowUser, checkIfFollowing, getFollowCounts } from "../services/supabase";
+import homeBg from "../assets/backgrounds/main-bg.jpg";
 import "./Search.css";
 
 function SkeletonList() {
@@ -109,7 +110,13 @@ export default function Search() {
   if (!user) return null;
 
   return (
-    <div className="search-page">
+    <div
+      className="search-page"
+      style={{ backgroundImage: `url(${homeBg})` }}
+    >
+      {/* Overlay gradient */}
+      <div className="search-overlay" />
+
       {/* Header */}
       <div className="search-header">
         <h1>Find People</h1>

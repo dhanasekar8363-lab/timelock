@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase, getConversations, getMessages, sendMessage } from "../services/supabase";
+import homeBg from "../assets/backgrounds/main-bg.jpg";
 import "./Messages.css";
 
 function SkeletonConv() {
@@ -207,7 +208,13 @@ export default function Messages() {
   if (!user) return null;
 
   return (
-    <div className="messages-page">
+    <div
+      className="messages-page"
+      style={{ backgroundImage: `url(${homeBg})` }}
+    >
+      {/* Overlay gradient */}
+      <div className="messages-overlay" />
+
       {!selectedConv ? (
         <div className="conv-panel">
           <div className="msg-header">

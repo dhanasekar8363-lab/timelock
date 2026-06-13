@@ -1,11 +1,39 @@
+:root {
+  --profile-text-primary:  #ffffff;
+  --profile-text-muted:    rgba(255,255,255,0.55);
+  --safe-bottom:           env(safe-area-inset-bottom, 0px);
+}
+
 .profile-page {
+  position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: 20px;
-  background: #0d0b2e;
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-attachment: scroll;
+  overflow-x: hidden;
+  font-family: 'Inter', system-ui, sans-serif;
 }
+
+.profile-overlay {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(11,13,46,0.10) 0%,
+    rgba(11,13,46,0.30) 45%,
+    rgba(11,13,46,0.55) 72%,
+    rgba(11,13,46,0.80) 100%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.profile-page > * { position: relative; z-index: 1; }
 
 .profile-card {
   width: 100%;

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { supabase, followUser, unfollowUser, checkIfFollowing, getFollowCounts, getFollowers, getFollowing } from "../services/supabase";
 import { useAuth } from "../contexts/AuthContext";
+import homeBg from "../assets/backgrounds/main-bg.jpg";
 import "./Profile.css";
 
 export default function Profile() {
@@ -260,7 +261,13 @@ export default function Profile() {
   }
 
   return (
-    <div className="profile-page">
+    <div
+      className="profile-page"
+      style={{ backgroundImage: `url(${homeBg})` }}
+    >
+      {/* Overlay gradient */}
+      <div className="profile-overlay" />
+
       <div className="profile-card">
         {!isOwnProfile && (
           <button className="back-btn" onClick={() => navigate(-1)}>

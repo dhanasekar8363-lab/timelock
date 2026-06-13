@@ -1,10 +1,40 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=Inter:wght@400;500;600&display=swap');
+
+:root {
+  --search-text-primary:  #ffffff;
+  --search-text-muted:    rgba(255,255,255,0.55);
+  --safe-bottom:          env(safe-area-inset-bottom, 0px);
+}
+
 /* ── Search Page ── */
 .search-page {
-  min-height: 100vh;
-  background: linear-gradient(160deg, #0d0b2e 0%, #1a1040 50%, #0d0b2e 100%);
+  position: relative;
+  min-height: 100dvh;
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-attachment: scroll;
   padding: 0 0 90px;
-  color: #fff;
+  color: var(--search-text-primary);
+  overflow-x: hidden;
+  font-family: 'Inter', system-ui, sans-serif;
 }
+
+.search-overlay {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(11,13,46,0.10) 0%,
+    rgba(11,13,46,0.30) 45%,
+    rgba(11,13,46,0.55) 72%,
+    rgba(11,13,46,0.80) 100%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.search-page > * { position: relative; z-index: 1; }
 
 /* Header */
 .search-header {
