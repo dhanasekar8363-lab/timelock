@@ -1,19 +1,25 @@
-import { createHashRouter, RouterProvider, Outlet, useLocation } from "react-router-dom";
+import {
+  createHashRouter,
+  createBrowserRouter,
+  RouterProvider,
+  Outlet,
+  useLocation,
+} from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 
-import Home           from "./pages/Home";
-import CreateCapsule  from "./pages/CreateCapsule";
-import LockedCapsule  from "./pages/LockedCapsule";
+import Home            from "./pages/Home";
+import CreateCapsule   from "./pages/CreateCapsule";
+import LockedCapsule   from "./pages/LockedCapsule";
 import UnlockedCapsule from "./pages/UnlockedCapsule";
-import Login          from "./pages/Login";
-import Profile        from "./pages/Profile";
-import EditProfile    from "./pages/EditProfile";
-import CapsuleDetail  from "./pages/CapsuleDetail";
-import CapsuleViewer  from "./pages/CapsuleViewer";
-import Messages       from "./pages/Messages";
-import Search         from "./pages/Search";
-import Notifications  from "./pages/Notifications";
-import BottomNav      from "./components/BottomNav";
+import Login           from "./pages/Login";
+import Profile         from "./pages/Profile";
+import EditProfile     from "./pages/EditProfile";
+import CapsuleDetail   from "./pages/CapsuleDetail";
+import CapsuleViewer   from "./pages/CapsuleViewer";
+import Messages        from "./pages/Messages";
+import Search          from "./pages/Search";
+import Notifications   from "./pages/Notifications";
+import BottomNav       from "./components/BottomNav";
 
 // Pages that should NOT show the bottom nav
 const NO_NAV_ROUTES = ["/login"];
@@ -29,9 +35,7 @@ function Layout() {
   );
 }
 
-// HashRouter is required for Capacitor (file:// protocol).
-// On web it also works fine — the URL just shows /#/route.
-const router = createHashRouter([
+const routes = [
   {
     element: <Layout />,
     children: [
@@ -50,7 +54,21 @@ const router = createHashRouter([
       { path: "/capsule/:slug",     element: <CapsuleViewer /> },
     ],
   },
-]);
+];
+
+// On native Capacitor (Android/iOS), pages are served from file:// — the server
+// never sees the URL, so BrowserRouter's history API is useless there.
+// HashRouter works because the hash is handled entirely client-side.
+//
+// On the web (Vercel), BrowserRouter is required so that real paths like
+// /capsule/grgr-3gd4t5 are sent to the server and matched by Vercel rewrites,
+// then matched here by the router. HashRouter would hide the path behind #,
+// causing shared links to always land on "/" instead of the correct route.
+const isNative = Capacitor.isNativePlatform();
+
+const router = isNative
+  ? createHashRouter(routes)
+  : createBrowserRouter(routes);
 
 export default function App() {
   return <RouterProvider router={router} />;
