@@ -1125,3 +1125,52 @@
   .cc-preview-glow,
   .cc-upload-progress-dot { animation: none; }
 }
+
+/* ── Draft-restored banner ──────────────────────────────────────────────────
+   Shown at the top of Step 1 when a saved draft is reloaded from localStorage.
+   Warns the user that attached files are never part of a draft.
+   ─────────────────────────────────────────────────────────────────────────── */
+.cc-draft-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  border-radius: 12px;
+  background: rgba(255, 200, 60, 0.15);
+  border: 1px solid rgba(255, 200, 60, 0.35);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--cc-text, #fff);
+}
+
+.cc-draft-banner-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.cc-draft-banner-text {
+  flex: 1;
+}
+
+.cc-draft-banner-text strong {
+  font-weight: 600;
+}
+
+.cc-draft-banner-dismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.6;
+  font-size: 0.9rem;
+  padding: 0 2px;
+  line-height: 1;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.cc-draft-banner-dismiss:hover {
+  opacity: 1;
+}

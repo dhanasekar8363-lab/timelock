@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase, sendMessage, isEmail } from "../services/supabase";
+import { useAuth } from "../contexts/AuthContext";
 import { playSound } from "../utils/sounds";
 import "./CreateCapsule.css";
 import createBg from "../assets/backgrounds/create-bg.jpg";
@@ -61,22 +62,39 @@ async function uploadFile(file) {
     .from("capsule-media")
     .getPublicUrl(path);
 
+  // FIX 5: expose the storage path so callers can delete orphaned files
+  // if a later upload in the same batch fails.
   return {
-    url: publicData.publicUrl,
+    url:  publicData.publicUrl,
+    path,                        // ← storage path for cleanup
     type: file.type,
     name: file.name,
   };
 }
 
-/* ── Generate a URL-safe slug for the capsule ── */
-function generateSlug(title) {
+/* ── Generate a URL-safe slug for the capsule ──
+   FIX 6: Was using Math.random() with no collision check, causing rare but
+   unrecoverable insert failures. Now retries up to 5 times with a DB check,
+   then falls back to a base-36 timestamp (guaranteed unique). ── */
+async function generateUniqueSlug(title, supabaseClient) {
   const base = title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 40) || "capsule";
-  const rand = Math.random().toString(36).slice(2, 8);
-  return `${base}-${rand}`;
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const rand      = Math.random().toString(36).slice(2, 8);
+    const candidate = `${base}-${rand}`;
+    const { data }  = await supabaseClient
+      .from("capsules")
+      .select("id")
+      .eq("slug", candidate)
+      .maybeSingle();
+    if (!data) return candidate;          // slug is free → use it
+  }
+  // Timestamp-based fallback: collision probability is effectively zero
+  return `${base}-${Date.now().toString(36)}`;
 }
 
 /* ── MediaUploadZone ── */
@@ -208,6 +226,10 @@ function CreateCapsule() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
+  // Fix 6: consume the already-authenticated user from context instead of
+  // calling supabase.auth.getUser() inside saveCapsule on every submission.
+  const { user } = useAuth();
+
   /* recipient pre-fill from URL (e.g. ?shareWith=USERID&shareWithName=USERNAME) */
   const [shareWithUserId, setShareWithUserId] = useState(null);
 
@@ -216,6 +238,24 @@ function CreateCapsule() {
   const [saving,  setSaving]  = useState(false);
   const [error,   setError]   = useState("");
   const [uploadProgress, setUploadProgress] = useState("");
+
+  // Fix 7: track whether the draft was saved so the button label can update.
+  const [draftSaved,     setDraftSaved]     = useState(false);
+  // Set to true when a draft is restored from localStorage, so we can show
+  // the "files weren't saved" banner in Step 1.
+  const [draftRestored,  setDraftRestored]  = useState(false);
+
+  // Fix 3: store the slug of the successfully saved capsule so we can navigate
+  // to it when the Instagram modal is closed, preventing duplicate saves.
+  const [savedCapsuleSlug, setSavedCapsuleSlug] = useState("");
+
+  // Fix 3: guard flag — once the capsule has been inserted we flip this ref to
+  // true.  Any subsequent click of "Send" (or Instagram / WhatsApp buttons)
+  // while on the same page is a no-op redirect instead of a duplicate insert.
+  const capsuleSavedRef = useRef(false);
+
+  // Fix 4: timer handle for search debouncing.
+  const searchDebounceRef = useRef(null);
 
   /* form fields */
   const [selectedTypes, setSelectedTypes] = useState(["text"]);
@@ -248,7 +288,9 @@ function CreateCapsule() {
   /* media uploads: { photo: [], video: [], audio: [], file: [] } */
   const [uploads, setUploads] = useState({ photo: [], video: [], audio: [], file: [] });
 
-  /* ── pre-fill recipient from URL params (sent from Messages chat) ── */
+  /* ── pre-fill recipient from URL params (sent from Messages chat) ──
+     FIX 7: searchParams was missing from the dependency array, so if the URL
+     changed while the page was mounted the recipient field would not update. ── */
   useEffect(() => {
     const shareWith = searchParams.get("shareWith");
     const shareName = searchParams.get("shareWithName");
@@ -257,24 +299,71 @@ function CreateCapsule() {
       setSelectedUserId(shareWith);
       setSelectedUserName(shareName || "User");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [searchParams]);
 
-  /* ── revoke object URLs on unmount ── */
+  /* ── Fix 7: restore draft from localStorage on first mount ──
+     Only runs once.  If a URL-based recipient is present it takes priority.
+     NOTE: file uploads are never restored from a draft — the browser's object
+     URL and File handle are gone after navigation.  A banner is shown in Step 1
+     so the user knows to re-attach any files. ── */
+  useEffect(() => {
+    const raw = localStorage.getItem("capsule_draft");
+    if (!raw) return;
+    try {
+      const d = JSON.parse(raw);
+      if (d.selectedTypes)  setSelectedTypes(d.selectedTypes);
+      if (d.message)        setMessage(d.message);
+      if (d.senderName)     setSenderName(d.senderName);
+      if (d.title)          setTitle(d.title);
+      if (d.unlockDate)     setUnlockDate(d.unlockDate);
+      if (d.unlockTime)     setUnlockTime(d.unlockTime);
+      if (d.hint)           setHint(d.hint);
+      if (d.coverType)      setCoverType(d.coverType);
+      if (d.receiverName)   { setReceiverName(d.receiverName); setShowManualReceiver(true); }
+      // Signal that a draft was loaded so we can show the media-not-restored banner.
+      setDraftRestored(true);
+    } catch {
+      // Corrupt draft — silently ignore.
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── revoke object URLs on unmount ──
+     FIX 1: The cleanup function closed over the *initial* (empty) uploads value
+     because the dependency array was []. Using a ref that shadows the latest
+     state means the cleanup always sees the current file list, preventing the
+     browser memory leak that grew with every photo/video added. ── */
+  const uploadsRef = useRef(uploads);
+  useEffect(() => {
+    uploadsRef.current = uploads;      // keep ref in sync on every render
+  }, [uploads]);
+
   useEffect(() => {
     return () => {
-      Object.values(uploads).flat().forEach((u) => {
+      Object.values(uploadsRef.current).flat().forEach((u) => {
         if (u.preview) URL.revokeObjectURL(u.preview);
       });
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []);                              // intentionally empty – runs only on unmount
+
+  /* ── Fix: cancel any in-flight search timer on unmount ──
+     Without this, if the user types and immediately navigates away, the 300 ms
+     timer fires on a dead component and React logs:
+     "Warning: Can't perform a React state update on an unmounted component." ── */
+  useEffect(() => {
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    };
+  }, []); // intentionally empty – cleanup only
 
   /* ── helpers ── */
   const toggleType = (id) => {
-    setSelectedTypes((prev) =>
-      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
-    );
+    setSelectedTypes((prev) => {
+      const isRemoving = prev.includes(id);
+      // FIX 4: clear message text when the "text" content type is deselected so
+      // a stale message is never silently saved with a non-text capsule.
+      if (id === "text" && isRemoving) setMessage("");
+      return isRemoving ? prev.filter((t) => t !== id) : [...prev, id];
+    });
   };
 
   const addUpload = (typeId, item) => {
@@ -301,28 +390,34 @@ function CreateCapsule() {
     setShowManualReceiver(false);
   };
 
-  /* ── user search ── */
-  const searchUsers = async (query) => {
+  /* ── user search (Fix 4: debounced 300 ms to prevent race conditions) ── */
+  const searchUsers = (query) => {
     setUserSearchQuery(query);
     if (!query.trim()) {
       setUserSearchResults([]);
       setShowUserDropdown(false);
+      // Cancel any pending search when the field is cleared.
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
       return;
     }
-    setUserSearchLoading(true);
     setShowUserDropdown(true);
-    try {
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .ilike("display_name", `%${query}%`)
-        .limit(8);
-      setUserSearchResults(data || []);
-    } catch {
-      setUserSearchResults([]);
-    } finally {
-      setUserSearchLoading(false);
-    }
+
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(async () => {
+      setUserSearchLoading(true);
+      try {
+        const { data } = await supabase
+          .from("profiles")
+          .select("id, display_name, avatar_url")
+          .ilike("display_name", `%${query}%`)
+          .limit(8);
+        setUserSearchResults(data || []);
+      } catch {
+        setUserSearchResults([]);
+      } finally {
+        setUserSearchLoading(false);
+      }
+    }, 300);
   };
 
   const selectUser = (user) => {
@@ -339,6 +434,11 @@ function CreateCapsule() {
 
   const selectedCover = COVERS.find((c) => c.id === coverType) || COVERS[0];
 
+  // NOTE: type="date" and type="time" return ISO strings (YYYY-MM-DD / HH:MM) on
+  // all modern mobile browsers (Android 5+, iOS 7+) and current desktop browsers.
+  // If a user reports "Invalid Date" on an older device, swap these for date-fns
+  // parse() calls.  Until then, the native format assumption is safe for the
+  // target audience.
   const unlockDateTimeString = unlockDate && unlockTime
     ? `${unlockDate}T${unlockTime}`
     : unlockDate ? `${unlockDate}T00:00` : "";
@@ -359,12 +459,62 @@ function CreateCapsule() {
   const messageRequired = selectedTypes.includes("text");
   const messageValid    = !messageRequired || message.trim().length > 0;
   const canProceedStep1 = selectedTypes.length > 0 && messageValid;
+
+  // FIX 3: reject past unlock dates so the capsule doesn't unlock immediately.
+  // Evaluate against Date.now() at render time; re-evaluates on every state change.
+  const unlockDateTimeMs =
+    unlockDate && unlockTime ? new Date(`${unlockDate}T${unlockTime}`).getTime()
+    : unlockDate             ? new Date(`${unlockDate}T00:00`).getTime()
+    : 0;
+  const isUnlockInFuture = unlockDateTimeMs > Date.now();
+
   const canProceedStep2 =
     senderName.trim() && title.trim() && unlockDate && unlockTime &&
+    isUnlockInFuture &&
     (selectedUserId || receiverName.trim());
+
+  /* ── Fix 7: Save current wizard state as a draft in localStorage ── */
+  const saveDraft = () => {
+    const draft = {
+      selectedTypes,
+      message,
+      senderName,
+      title,
+      unlockDate,
+      unlockTime,
+      hint,
+      coverType,
+      receiverName,
+      savedAt: Date.now(),
+    };
+    try {
+      localStorage.setItem("capsule_draft", JSON.stringify(draft));
+      setDraftSaved(true);
+      // Return to the details step so the user can keep editing.
+      setStep(2);
+      setTimeout(() => setDraftSaved(false), 2500);
+    } catch {
+      // Storage quota exceeded or private-browsing restriction — degrade
+      // gracefully by just navigating back to the details step.
+      setStep(2);
+    }
+  };
 
   /* ── submit ── */
   const saveCapsule = async ({ shareVia } = {}) => {
+    // Fix 3: if we already saved this capsule (e.g. user shared via Instagram
+    // then clicked Send again), redirect instead of creating a duplicate.
+    if (capsuleSavedRef.current) {
+      navigate(
+        savedCapsuleSlug
+          ? `/capsule/${savedCapsuleSlug}`
+          : selectedUserId
+            ? `/messages?userId=${selectedUserId}&userName=${encodeURIComponent(selectedUserName || "User")}`
+            : "/"
+      );
+      return;
+    }
+
     console.log("HANDLE SUBMIT START");
     setError("");
     setSaving(true);
@@ -373,6 +523,10 @@ function CreateCapsule() {
     const allFiles = Object.values(uploads).flat();
     const uploadedMedia = [];
 
+    // FIX 5: track storage paths so we can delete any already-uploaded files
+    // if a later file in the same batch fails, preventing orphaned billing.
+    const uploadedPaths = [];
+
     if (allFiles.length > 0) {
       console.log("BEFORE MEDIA UPLOAD");
       setUploadProgress(`Uploading media (0 / ${allFiles.length})…`);
@@ -380,8 +534,18 @@ function CreateCapsule() {
         try {
           setUploadProgress(`Uploading media (${i + 1} / ${allFiles.length})…`);
           const result = await uploadFile(allFiles[i].file);
+          uploadedPaths.push(result.path);   // FIX 5: record path immediately
           uploadedMedia.push(result);
         } catch (err) {
+          // FIX 5: clean up the files that did succeed before aborting
+          if (uploadedPaths.length > 0) {
+            try {
+              await supabase.storage.from("capsule-media").remove(uploadedPaths);
+              console.log("Cleaned up orphaned uploads:", uploadedPaths);
+            } catch (cleanupErr) {
+              console.error("Orphan cleanup failed:", cleanupErr);
+            }
+          }
           setError(`Upload failed: ${err.message}`);
           setSaving(false);
           setUploadProgress("");
@@ -395,19 +559,19 @@ function CreateCapsule() {
     setUploadProgress("Saving capsule…");
 
     /* 2. Insert capsule row */
-    const slug = generateSlug(title);
+    // FIX 6: replaced Math.random() slug (no collision check) with an async
+    // function that verifies uniqueness in the DB before committing.
+    const slug = await generateUniqueSlug(title, supabase);
 
-    // ── Resolve the authenticated user ONCE for the whole save operation ─────
-    const { data: authData, error: authErr } = await supabase.auth.getUser();
-    if (authErr || !authData?.user) {
+    // Fix 6: use the user object from AuthContext — no redundant network call.
+    if (!user) {
       setError("You must be logged in to create a capsule.");
       setSaving(false);
       setUploadProgress("");
       return;
     }
-    const currentUserId = authData.user.id;
+    const currentUserId = user.id;
     console.log("🔐 Authenticated user.id for new capsule:", currentUserId);
-    // ────────────────────────────────────────────────────────────────────────
 
     // ── Resolve recipient identity ───────────────────────────────────────────
     // - selectedUserId / selectedUserName come from the username search and
@@ -440,7 +604,11 @@ function CreateCapsule() {
       receiver_name:  recipientName,   // human-readable "To:" — never a UUID
       receiver_email: recipientEmail,  // real email only, or null
       title:          title.trim(),
-      message:        message,
+      // Ghost-message fix: if the user has deselected the "Text" content type,
+      // do not persist whatever is still in the textarea.  toggleType() clears
+      // the field on deselect, but a user could re-type after deselecting, so
+      // this gate is the authoritative guard at the persistence boundary.
+      message:        selectedTypes.includes("text") ? message : "",
       hint:           hint,
       cover_type:     coverType,
       unlock_date:    unlockDateTimeString,
@@ -466,10 +634,17 @@ function CreateCapsule() {
 
     if (err) { setError(err.message); return; }
 
+    // Fix 3: mark this capsule as saved so any subsequent button press on this
+    // page redirects instead of inserting a duplicate.
+    const savedSlug = data?.[0]?.slug || slug;
+    capsuleSavedRef.current = true;
+    setSavedCapsuleSlug(savedSlug);
+
+    // Fix 7: remove the draft now that it has been successfully submitted.
+    try { localStorage.removeItem("capsule_draft"); } catch { /* ignore */ }
+
     // 🔊 Play send sound on successful capsule creation
     playSound("capsuleSend");
-
-    const savedSlug = data?.[0]?.slug || slug;
     const capsuleUrl = `${window.location.origin}/capsule/${savedSlug}`;
 
     /* ── Helper: send an in-app capsule notification message ── */
@@ -500,7 +675,30 @@ function CreateCapsule() {
     /* 3. Share via WhatsApp */
     if (shareVia === "whatsapp") {
       const waText = `I sent you a Time Capsule! It unlocks on ${unlockDateDisplay}. Open it here: ${capsuleUrl}`;
-      window.open(`https://wa.me/?text=${encodeURIComponent(waText)}`, "_blank");
+      const waWindow = window.open(`https://wa.me/?text=${encodeURIComponent(waText)}`, "_blank");
+
+      // If the browser's popup blocker killed the window, fall back to showing
+      // the capsule link inline rather than leaving the user on a saved-but-stuck
+      // page with no way forward.  We still navigate away because the capsule has
+      // been committed to the DB and a second click would create a duplicate.
+      if (!waWindow) {
+        setError(
+          `WhatsApp was blocked by your browser. Share this link manually: ${capsuleUrl}`
+        );
+        setSaving(false);
+        // Don't return — still send the in-app message and navigate normally so
+        // the user can copy the URL from the error banner before we redirect.
+        await sendCapsuleMessage();
+        setTimeout(() => {
+          if (selectedUserId) {
+            navigate(`/messages?userId=${selectedUserId}&userName=${encodeURIComponent(selectedUserName || "User")}`);
+          } else {
+            navigate(`/capsule/${savedSlug}`);
+          }
+        }, 4000);        // give 4 s to read the error and copy the link
+        return;
+      }
+
       await sendCapsuleMessage();
       if (selectedUserId) {
         navigate(`/messages?userId=${selectedUserId}&userName=${encodeURIComponent(selectedUserName || "User")}`);
@@ -571,6 +769,22 @@ function CreateCapsule() {
       {step === 1 && (
         <div className="cc-body">
           <h2 className="cc-question">What do you want<br />to send?</h2>
+
+          {/* Draft-restored notice — shown only when localStorage draft was loaded */}
+          {draftRestored && (
+            <div className="cc-draft-banner">
+              <span className="cc-draft-banner-icon">📋</span>
+              <span className="cc-draft-banner-text">
+                Draft restored.&nbsp;
+                <strong>Files aren't saved in drafts</strong> — please re-attach any photos, videos, or other files.
+              </span>
+              <button
+                className="cc-draft-banner-dismiss"
+                onClick={() => setDraftRestored(false)}
+                aria-label="Dismiss"
+              >✕</button>
+            </div>
+          )}
 
           <div className="cc-type-grid">
             {CONTENT_TYPES.map((ct) => (
@@ -659,6 +873,13 @@ function CreateCapsule() {
               onChange={(e) => setUnlockTime(e.target.value)}
             />
           </div>
+
+          {/* Fix 5: show an inline warning when the chosen date/time is in the past */}
+          {unlockDate && unlockTime && !isUnlockInFuture && (
+            <p className="cc-error" style={{ marginTop: 4, marginBottom: 8 }}>
+              ⚠️ Unlock time must be in the future.
+            </p>
+          )}
 
           <p className="cc-section-label">From</p>
           <div className="cc-glass-field">
@@ -960,7 +1181,15 @@ function CreateCapsule() {
 
           {/* Instagram modal */}
           {igModalVisible && (
-            <div className="cc-ig-modal-backdrop" onClick={() => setIgModalVisible(false)}>
+            <div
+              className="cc-ig-modal-backdrop"
+              onClick={() => {
+                setIgModalVisible(false);
+                // Fix 3: capsule was already saved — navigate away so the user
+                // cannot click "Send" again and create a duplicate.
+                navigate(`/capsule/${savedCapsuleSlug}`);
+              }}
+            >
               <div className="cc-ig-modal" onClick={(e) => e.stopPropagation()}>
                 <p className="cc-ig-modal-title">Share on Instagram</p>
                 <p className="cc-ig-modal-desc">
@@ -981,7 +1210,12 @@ function CreateCapsule() {
                 </button>
                 <button
                   className="cc-ig-close-btn"
-                  onClick={() => setIgModalVisible(false)}
+                  onClick={() => {
+                    setIgModalVisible(false);
+                    // Fix 3: navigate after closing so the page is not left in a
+                    // saved-but-unlocked state where a second Send creates a duplicate.
+                    navigate(`/capsule/${savedCapsuleSlug}`);
+                  }}
                 >
                   Done
                 </button>
@@ -989,12 +1223,13 @@ function CreateCapsule() {
             </div>
           )}
 
+          {/* Fix 7: actually save the draft to localStorage, then go back to Step 2 */}
           <button
             className="cc-ghost-btn"
-            onClick={() => setStep(2)}
+            onClick={saveDraft}
             disabled={saving}
           >
-            Save as Draft
+            {draftSaved ? "✓ Draft Saved!" : "Save as Draft"}
           </button>
         </div>
       )}

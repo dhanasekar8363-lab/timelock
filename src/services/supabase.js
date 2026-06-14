@@ -352,9 +352,35 @@ export const getMessages = async (userId, otherUserId) => {
 }
 
 /**
- * Send a message from one user to another
+ * Send a message from one user to another.
+ *
+ * @param {string} senderId
+ * @param {string} recipientId
+ * @param {string} content        Human-readable text (always required).
+ *                                Shown in notifications and conversation previews.
+ * @param {'text'|'capsule'} [messageType='text']
+ *                                Pass 'capsule' when the message carries a time-capsule
+ *                                payload so the chat UI renders a rich capsule card
+ *                                instead of plain text.
+ * @param {object|null} [metadata=null]
+ *                                Structured data merged into the JSON payload when
+ *                                messageType === 'capsule'.  Expected shape:
+ *                                { id, title, slug, cover_type, unlock_date }
+ *
+ * Storage contract
+ * ─────────────────
+ * • messageType === 'text'    → content column = the plain text string.
+ * • messageType === 'capsule' → content column = JSON string:
+ *     { type: 'capsule', text: '<human text>', id, title, slug, cover_type, unlock_date }
+ *   The existing `tryParseCapsule()` helper already knows how to read this shape.
  */
-export const sendMessage = async (senderId, recipientId, content) => {
+export const sendMessage = async (
+  senderId,
+  recipientId,
+  content,
+  messageType = 'text',
+  metadata = null,
+) => {
   try {
     if (!senderId || !recipientId) {
       throw new Error('senderId and recipientId are required')
@@ -363,14 +389,21 @@ export const sendMessage = async (senderId, recipientId, content) => {
       throw new Error('Message content cannot be empty')
     }
 
+    // For capsule messages store a JSON envelope so the chat UI can render a
+    // rich capsule card.  Plain-text messages are stored as-is.
+    const storedContent =
+      messageType === 'capsule' && metadata
+        ? JSON.stringify({ type: 'capsule', text: content.trim(), ...metadata })
+        : content.trim()
+
     const { data, error } = await supabase
       .from('messages')
       .insert([{
-        sender_id: senderId,
+        sender_id:    senderId,
         recipient_id: recipientId,
-        content: content.trim(),
-        created_at: new Date().toISOString(),
-        read_at: null,
+        content:      storedContent,
+        created_at:   new Date().toISOString(),
+        read_at:      null,
       }])
       .select()
 
@@ -378,7 +411,7 @@ export const sendMessage = async (senderId, recipientId, content) => {
     if (!data || !data[0]) throw new Error('No data returned from insert')
 
     // Notify recipient (fire-and-forget)
-    createNotification(recipientId, 'New Message', `You have a new message`)
+    createNotification(recipientId, 'New Message', 'You have a new message')
 
     return { data: data[0], error: null }
   } catch (error) {
