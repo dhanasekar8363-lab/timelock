@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase, getRecipientDisplayName, getRecipientEmail } from "../services/supabase";
 import { playSound } from "../utils/sounds";
+import { usePet } from "../contexts/PetContext";
 import LockedCapsule from "./LockedCapsule";
 import UnlockedCapsule from "./UnlockedCapsule";
 
@@ -66,6 +67,7 @@ function CapsuleViewer() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [isUnlocked, setIsUnlocked] = useState(false);
+  const { triggerPetEvent } = usePet();
 
   useEffect(() => {
     if (!slug) { setNotFound(true); setLoading(false); return; }
@@ -90,7 +92,11 @@ function CapsuleViewer() {
         : true; // no date set → treat as open
 
       // 🔊 Play unlock sound when capsule is already open on arrival
-      if (unlocked) playSound("unlock");
+      if (unlocked) {
+        playSound("unlock");
+        // 🐾 Lumi celebrates the capsule being unlocked
+        triggerPetEvent("capsuleUnlocked");
+      }
 
       setIsUnlocked(unlocked);
     })();
@@ -100,6 +106,8 @@ function CapsuleViewer() {
   const handleUnlock = () => {
     // 🔊 Play unlock sound when countdown reaches zero mid-session
     playSound("unlock");
+    // 🐾 Lumi celebrates the capsule unlocking live
+    triggerPetEvent("capsuleUnlocked");
     setIsUnlocked(true);
   };
 

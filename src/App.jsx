@@ -20,6 +20,8 @@ import Messages        from "./pages/Messages";
 import Search          from "./pages/Search";
 import Notifications   from "./pages/Notifications";
 import BottomNav       from "./components/BottomNav";
+import PetCompanion    from "./components/PetCompanion";
+import { PetProvider } from "./contexts/PetContext";
 
 // Pages that should NOT show the bottom nav
 const NO_NAV_ROUTES = ["/login"];
@@ -31,6 +33,7 @@ function Layout() {
     <>
       <Outlet />
       {showNav && <BottomNav />}
+      <PetCompanion />
     </>
   );
 }
@@ -71,5 +74,9 @@ const router = isNative
   : createBrowserRouter(routes);
 
 export default function App() {
-  return <RouterProvider router={router} />;
+  return (
+    <PetProvider>
+      <RouterProvider router={router} />
+    </PetProvider>
+  );
 }
