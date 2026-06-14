@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase, followUser, unfollowUser, checkIfFollowing, getFollowCounts } from "../services/supabase";
-import homeBg from "../assets/backgrounds/message.jpg";
+import homeBg from "../assets/backgrounds/message-bg.jpg";
 import "./Search.css";
 
 function SkeletonList() {
@@ -15,6 +15,35 @@ function SkeletonList() {
             <div className="skeleton-line short" />
           </div>
         </div>
+      ))}
+    </div>
+  );
+}
+
+/* Decorative two-person glyph used for the hero icon and empty state */
+function PeopleGlyph({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="peopleGradFill" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#b9a6ff" />
+          <stop offset="100%" stopColor="#6d4bff" />
+        </linearGradient>
+      </defs>
+      <circle cx="38" cy="34" r="15" fill="url(#peopleGradFill)" opacity="0.85" />
+      <circle cx="63" cy="34" r="15" fill="url(#peopleGradFill)" />
+      <path d="M14 80c0-15.5 11.5-25 24-25s24 9.5 24 25" fill="url(#peopleGradFill)" opacity="0.85" />
+      <path d="M38 80c0-15.5 11.5-25 24-25s24 9.5 24 25" fill="url(#peopleGradFill)" />
+    </svg>
+  );
+}
+
+/* Sprinkle of ambient stars used in the hero and empty-state card */
+function StarField({ className, count = 6 }) {
+  return (
+    <div className={className} aria-hidden="true">
+      {Array.from({ length: count }).map((_, i) => (
+        <span className={`star star-${(i % 6) + 1}`} key={i}>✦</span>
       ))}
     </div>
   );
@@ -117,8 +146,15 @@ export default function Search() {
       {/* Overlay gradient */}
       <div className="search-overlay" />
 
-      {/* Header */}
-      <div className="search-header">
+      {/* Ambient floating stars */}
+      <StarField className="page-stars" count={8} />
+
+      {/* Hero */}
+      <div className="search-hero">
+        <div className="hero-icon-wrap">
+          <div className="hero-icon-glow" />
+          <PeopleGlyph className="hero-icon" />
+        </div>
         <h1>Find People</h1>
         <p>Search by name to connect</p>
       </div>
@@ -126,7 +162,7 @@ export default function Search() {
       {/* Search bar */}
       <div className="search-bar-wrap">
         <div className="search-bar">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="search-bar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
           <input
@@ -141,24 +177,55 @@ export default function Search() {
             <button className="search-clear" onClick={() => handleSearch("")}>✕</button>
           )}
         </div>
+
+        <button className="filter-btn" type="button" aria-label="Filters" title="Filters">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="4" y1="6" x2="20" y2="6"/>
+            <line x1="7" y1="12" x2="17" y2="12"/>
+            <line x1="10" y1="18" x2="14" y2="18"/>
+          </svg>
+          <span className="filter-spark">✦</span>
+        </button>
       </div>
 
       {/* Body */}
       {loading && <SkeletonList />}
 
       {!loading && !searchQuery && (
-        <div className="empty-state">
-          <div className="empty-icon">👥</div>
-          <p>Search for people to follow</p>
-          <span className="hint">Start typing a name above</span>
+        <div className="empty-state-card">
+          <StarField className="card-stars" count={6} />
+          <div className="empty-icon-wrap">
+            <div className="empty-icon-glow" />
+            <PeopleGlyph className="empty-icon" />
+          </div>
+          <p className="empty-title">Search for people to follow</p>
+          <span className="empty-hint">
+            <span className="hint-spark">✦</span>
+            Start typing a name above
+            <span className="hint-spark">✦</span>
+          </span>
+          <div className="empty-divider">
+            <span className="divider-spark">✦</span>
+          </div>
         </div>
       )}
 
       {!loading && searchQuery && searchResults.length === 0 && (
-        <div className="empty-state">
-          <div className="empty-icon">🔍</div>
-          <p>No users found</p>
-          <span className="hint">Try a different name</span>
+        <div className="empty-state-card">
+          <StarField className="card-stars" count={6} />
+          <div className="empty-icon-wrap">
+            <div className="empty-icon-glow" />
+            <span className="empty-icon-emoji">🔍</span>
+          </div>
+          <p className="empty-title">No users found</p>
+          <span className="empty-hint">
+            <span className="hint-spark">✦</span>
+            Try a different name
+            <span className="hint-spark">✦</span>
+          </span>
+          <div className="empty-divider">
+            <span className="divider-spark">✦</span>
+          </div>
         </div>
       )}
 
