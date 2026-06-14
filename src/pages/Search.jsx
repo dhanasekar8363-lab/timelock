@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase, followUser, unfollowUser, checkIfFollowing, getFollowCounts } from "../services/supabase";
-import homeBg from "../assets/backgrounds/main-bg.jpg";
+import homeBg from "../assets/backgrounds/message-bg.jpg";
 import "./Search.css";
 
 function SkeletonList() {
