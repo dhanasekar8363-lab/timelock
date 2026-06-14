@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase, sendMessage, isEmail, searchProfiles } from "../services/supabase";
 import { useAuth } from "../contexts/AuthContext";
+import { usePet } from "../contexts/PetContext";
 import { playSound } from "../utils/sounds";
 import "./CreateCapsule.css";
 import createBg from "../assets/backgrounds/create-bg.jpg";
@@ -229,6 +230,7 @@ function CreateCapsule() {
   // Fix 6: consume the already-authenticated user from context instead of
   // calling supabase.auth.getUser() inside saveCapsule on every submission.
   const { user } = useAuth();
+  const { triggerPetEvent } = usePet();
 
   /* recipient pre-fill from URL (e.g. ?shareWith=USERID&shareWithName=USERNAME) */
   const [shareWithUserId, setShareWithUserId] = useState(null);
@@ -692,6 +694,8 @@ function CreateCapsule() {
 
     // 🔊 Play send sound on successful capsule creation
     playSound("capsuleSend");
+    // 🐾 Lumi jumps and shoots confetti
+    triggerPetEvent("capsuleCreated");
     const capsuleUrl = `${window.location.origin}/capsule/${savedSlug}`;
 
     /* ── Helper: send an in-app capsule notification message ── */

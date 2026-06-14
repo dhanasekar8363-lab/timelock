@@ -32,10 +32,12 @@
   height: 64px;
   object-fit: contain;
   object-position: center;
+  /* ── Requirement 3: soft purple magical glow with multiple drop-shadows ── */
   filter:
-    drop-shadow(0 0 8px rgba(167, 99, 255, 0.85))
-    drop-shadow(0 0 18px rgba(130, 60, 220, 0.55))
-    drop-shadow(0 0 32px rgba(100, 30, 180, 0.35));
+    drop-shadow(0 0 6px rgba(167, 99, 255, 0.9))
+    drop-shadow(0 0 14px rgba(130, 60, 220, 0.65))
+    drop-shadow(0 0 28px rgba(100, 30, 180, 0.45))
+    drop-shadow(0 0 48px rgba(80, 10, 160, 0.25));
   transition: filter 0.2s ease;
   pointer-events: none;
   -webkit-user-drag: none;
@@ -46,22 +48,27 @@
   filter:
     drop-shadow(0 0 14px rgba(220, 160, 255, 1))
     drop-shadow(0 0 28px rgba(167, 99, 255, 0.9))
-    drop-shadow(0 0 48px rgba(130, 60, 220, 0.6));
+    drop-shadow(0 0 48px rgba(130, 60, 220, 0.6))
+    drop-shadow(0 0 72px rgba(100, 30, 180, 0.4));
 }
 
-/* ── Idle: glow pulse ── */
+/* ── Requirement 1 & 2: Idle = glow pulse (handled by framer-motion float+breathe)
+      The CSS animation below applies only when framer-motion is NOT in control
+      (e.g. reduced-motion fallback) ── */
 @keyframes lumi-glow-pulse {
   0%, 100% {
     filter:
-      drop-shadow(0 0 8px rgba(167, 99, 255, 0.85))
-      drop-shadow(0 0 18px rgba(130, 60, 220, 0.55))
-      drop-shadow(0 0 32px rgba(100, 30, 180, 0.35));
+      drop-shadow(0 0 6px rgba(167, 99, 255, 0.9))
+      drop-shadow(0 0 14px rgba(130, 60, 220, 0.65))
+      drop-shadow(0 0 28px rgba(100, 30, 180, 0.45))
+      drop-shadow(0 0 48px rgba(80, 10, 160, 0.25));
   }
   50% {
     filter:
-      drop-shadow(0 0 14px rgba(200, 140, 255, 1))
-      drop-shadow(0 0 28px rgba(167, 99, 255, 0.75))
-      drop-shadow(0 0 48px rgba(130, 60, 220, 0.5));
+      drop-shadow(0 0 12px rgba(200, 140, 255, 1))
+      drop-shadow(0 0 24px rgba(167, 99, 255, 0.8))
+      drop-shadow(0 0 44px rgba(130, 60, 220, 0.55))
+      drop-shadow(0 0 72px rgba(100, 30, 180, 0.35));
   }
 }
 
@@ -100,6 +107,21 @@
     lumi-glow-pulse 3s ease-in-out infinite;
 }
 
+/* ── Requirement 8: Tail wag ── */
+@keyframes lumi-tail-wag {
+  0%   { transform: rotate(0deg)   scaleX(1); }
+  20%  { transform: rotate(12deg)  scaleX(1.05); }
+  40%  { transform: rotate(-10deg) scaleX(0.97); }
+  60%  { transform: rotate(8deg)   scaleX(1.03); }
+  80%  { transform: rotate(-6deg)  scaleX(0.99); }
+  100% { transform: rotate(0deg)   scaleX(1); }
+}
+
+.lumi-tail {
+  transform-origin: left center;
+  animation: lumi-tail-wag 1.4s ease-in-out infinite;
+}
+
 /* ── Aura ring ── */
 .lumi-aura {
   position: absolute;
@@ -108,6 +130,12 @@
   border: 1.5px dashed rgba(180, 120, 255, 0.45);
   animation: lumi-spin 12s linear infinite;
   pointer-events: none;
+  transition: opacity 0.6s ease, border-color 0.6s ease;
+}
+
+.lumi-aura--dim {
+  opacity: 0.25;
+  border-color: rgba(140, 100, 200, 0.3);
 }
 
 @keyframes lumi-spin {
@@ -115,7 +143,7 @@
   to   { transform: rotate(360deg); }
 }
 
-/* ── Tooltip ── */
+/* ── Tooltip / speech bubble ── */
 .lumi-tooltip {
   position: absolute;
   bottom: calc(100% + 10px);
@@ -250,10 +278,45 @@
   100% { opacity: 0; transform: scale(1.8) translate(var(--sx), var(--sy)); }
 }
 
+/* ── Requirement 5: Floating hearts (tap reaction) ── */
+.lumi-floating-heart {
+  position: absolute;
+  bottom: 100%;
+  font-size: 16px;
+  line-height: 1;
+  pointer-events: none;
+  /* framer-motion handles the animation */
+}
+
+/* ── Requirement 7: Sleep indicator ── */
+.lumi-sleep-indicator {
+  position: absolute;
+  top: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 20px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ── Requirement 7: Sleep ZZZ particles ── */
+.lumi-zzz {
+  position: absolute;
+  top: -12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(190, 150, 255, 0.85);
+  pointer-events: none;
+  z-index: 2;
+  text-shadow: 0 0 6px rgba(167, 99, 255, 0.7);
+  /* framer-motion handles float/fade */
+}
+
 /* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   .lumi-aura { animation: none; }
   .lumi-sparkle { animation: none; opacity: 0; }
+  .lumi-tail { animation: none; }
   .lumi-image,
   .lumi-image--idle,
   .lumi-image--tap,

@@ -12,19 +12,25 @@ const PetContext = createContext(null);
 export const PET_EVENTS = {
   capsuleCreated: {
     animation: "jump",
-    effect: "sparkle",
-    message: "Memory saved! ✨",
-    duration: 3000,
+    effect: "confetti",
+    message: "Yay! New capsule created! 🎉",
+    duration: 3500,
+  },
+  capsuleReceived: {
+    animation: "bounce",
+    effect: "floatingHearts",
+    message: "Someone sent you a capsule! 💌",
+    duration: 3500,
   },
   newMessage: {
-    animation: "tailWag",
+    animation: "bounce",
     effect: "heart",
     message: "Someone sent you something! 💌",
     duration: 3000,
   },
   capsuleUnlocked: {
     animation: "celebrate",
-    effect: "confetti",
+    effect: "sparkleBurst",
     message: "Time to open it! 🎉",
     duration: 3500,
   },

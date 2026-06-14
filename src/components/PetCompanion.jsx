@@ -11,16 +11,34 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import lumi from "../assets/lumi.png";
+import { usePet } from "../contexts/PetContext";
 import "./PetCompanion.css";
 
 /* ─────────────────────────────────────────────
    Constants
 ───────────────────────────────────────────── */
-const STORAGE_KEY   = "lumi_position";
-const HIDDEN_KEY    = "lumi_hidden";
-const NAV_HEIGHT    = 68;   // px — keep Lumi above bottom nav
-const PET_SIZE      = 72;   // px
-const LONG_PRESS_MS = 600;  // ms to trigger menu
+const STORAGE_KEY      = "lumi_position";
+const HIDDEN_KEY       = "lumi_hidden";
+const NAV_HEIGHT       = 68;    // px — keep Lumi above bottom nav
+const PET_SIZE         = 72;    // px
+const LONG_PRESS_MS    = 600;   // ms to trigger menu
+const SLEEP_TIMEOUT_MS = 60000; // 60 s of no interaction → sleep mode
+const SPEECH_MIN_MS    = 120000; // 2 min
+const SPEECH_MAX_MS    = 180000; // 3 min
+const SPEECH_SHOW_MS   = 5000;  // bubble visible for 5 s
+
+/* ─────────────────────────────────────────────
+   Random speech messages
+───────────────────────────────────────────── */
+const RANDOM_SPEECHES = [
+  "Hi Dhana! ✨",
+  "Create a capsule! 📦",
+  "I'm protecting memories 💜",
+  "Someone may send you a capsule 👀",
+  "Time is precious… 🌙",
+  "Your memories are safe with me 🔮",
+  "Don't forget to look back! ⭐",
+];
 
 /* ─────────────────────────────────────────────
    Lumi PNG image
@@ -33,6 +51,54 @@ function LumiImage({ animState }) {
       className={`lumi-image lumi-image--${animState}`}
       draggable={false}
     />
+  );
+}
+
+/* ─────────────────────────────────────────────
+   Floating heart — rises and fades out
+───────────────────────────────────────────── */
+function FloatingHeart({ id, onDone }) {
+  const offsetX = (Math.random() - 0.5) * 40; // spread horizontally
+
+  useEffect(() => {
+    const t = setTimeout(onDone, 1500);
+    return () => clearTimeout(t);
+  }, [onDone]);
+
+  return (
+    <motion.span
+      className="lumi-floating-heart"
+      style={{ left: `calc(50% + ${offsetX}px)` }}
+      initial={{ opacity: 1, y: 0, scale: 0.6 }}
+      animate={{ opacity: 0, y: -52, scale: 1.2 }}
+      transition={{ duration: 1.4, ease: "easeOut" }}
+    >
+      ❤️
+    </motion.span>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   Sleep ZZZ particle
+───────────────────────────────────────────── */
+function SleepZzz({ id, onDone }) {
+  const offsetX = (Math.random() - 0.5) * 20;
+
+  useEffect(() => {
+    const t = setTimeout(onDone, 2200);
+    return () => clearTimeout(t);
+  }, [onDone]);
+
+  return (
+    <motion.span
+      className="lumi-zzz"
+      style={{ left: `calc(50% + ${offsetX}px)` }}
+      initial={{ opacity: 0.9, y: 0, scale: 0.7 }}
+      animate={{ opacity: 0, y: -40, scale: 1.1 }}
+      transition={{ duration: 2, ease: "easeOut" }}
+    >
+      z
+    </motion.span>
   );
 }
 
@@ -50,7 +116,6 @@ function Particle({ id, type, onDone }) {
     return () => clearTimeout(t);
   }, [onDone]);
 
-  // type: "sparkle" | "heart" | "star"
   const emoji = type === "heart" ? "💜" : type === "star" ? "⭐" : null;
 
   if (emoji) {
@@ -72,10 +137,55 @@ function Particle({ id, type, onDone }) {
   );
 }
 
+function makeConfetti(n) {
+  return Array.from({ length: n }, (_, i) => ({ id: Date.now() + i, type: "confetti" }));
+}
+
 /* ─────────────────────────────────────────────
-   Helper — burst N particles
+   Confetti particle — pops out in random direction and colour
 ───────────────────────────────────────────── */
-function makeBurst(n) {
+const CONFETTI_COLORS = ["#FF6B9D", "#FFD93D", "#6BCB77", "#4D96FF", "#C77DFF", "#FF9A3C"];
+
+function ConfettiParticle({ id, onDone }) {
+  const angle  = Math.random() * 2 * Math.PI;
+  const dist   = 30 + Math.random() * 50;
+  const color  = CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)];
+  const size   = 5 + Math.random() * 5;
+  const rotate = Math.random() * 360;
+
+  useEffect(() => {
+    const t = setTimeout(onDone, 900);
+    return () => clearTimeout(t);
+  }, [onDone]);
+
+  return (
+    <motion.div
+      style={{
+        position: "absolute",
+        left: "50%",
+        top: "50%",
+        width: size,
+        height: size * 0.55,
+        borderRadius: 2,
+        background: color,
+        transformOrigin: "center",
+        pointerEvents: "none",
+        zIndex: 10,
+      }}
+      initial={{ opacity: 1, x: 0, y: 0, rotate: 0, scale: 1 }}
+      animate={{
+        opacity: 0,
+        x: Math.cos(angle) * dist,
+        y: Math.sin(angle) * dist,
+        rotate: rotate,
+        scale: 0.4,
+      }}
+      transition={{ duration: 0.85, ease: "easeOut" }}
+    />
+  );
+}
+
+
   return Array.from({ length: n }, (_, i) => ({ id: Date.now() + i, type: "sparkle" }));
 }
 function makeHearts(n) {
@@ -83,6 +193,12 @@ function makeHearts(n) {
 }
 function makeStars(n) {
   return Array.from({ length: n }, (_, i) => ({ id: Date.now() + i, type: "star" }));
+}
+function makeFloatingHearts(n) {
+  return Array.from({ length: n }, (_, i) => ({ id: Date.now() + i + 10000 }));
+}
+function makeZzzs(n) {
+  return Array.from({ length: n }, (_, i) => ({ id: Date.now() + i + 20000 }));
 }
 
 /* ─────────────────────────────────────────────
@@ -115,17 +231,30 @@ export default function PetCompanion() {
   const wrapperRef  = useRef(null);
 
   /* ── UI state ── */
-  const [menuOpen,    setMenuOpen]    = useState(false);
-  const [tapped,      setTapped]      = useState(false);
-  const [tooltip,     setTooltip]     = useState(null);
-  const [particles,   setParticles]   = useState([]);
+  const [menuOpen,        setMenuOpen]        = useState(false);
+  const [tapped,          setTapped]          = useState(false);
+  const [tooltip,         setTooltip]         = useState(null);
+  const [particles,       setParticles]       = useState([]);
+  const [confetti,        setConfetti]        = useState([]);
+  const [floatingHearts,  setFloatingHearts]  = useState([]);
+  const [sleeping,        setSleeping]        = useState(false);
+  const [zzzParticles,    setZzzParticles]    = useState([]);
 
   /* ── Animation state for the image ── */
   // "idle" | "tap" | "bounce"
-  const [animState,   setAnimState]   = useState("idle");
+  const [animState, setAnimState] = useState("idle");
+
+  /* ── Pet context (capsule reactions) ── */
+  const { activeEvent, clearPetEvent } = usePet();
 
   /* ── Long-press timer ── */
   const longPressTimer = useRef(null);
+
+  /* ── Sleep timer ── */
+  const sleepTimer      = useRef(null);
+  const zzzInterval     = useRef(null);
+  const speechTimer     = useRef(null);
+  const tooltipTimer    = useRef(null);
 
   /* ─────────────────────────────────────────
      Clamp helper — keep Lumi fully on screen
@@ -140,6 +269,72 @@ export default function PetCompanion() {
   ───────────────────────────────────────── */
   const savePos = useCallback((p) => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(p)); } catch (_) {}
+  }, []);
+
+  /* ─────────────────────────────────────────
+     Sleep mode helpers
+  ───────────────────────────────────────── */
+  const startZzzLoop = useCallback(() => {
+    // Emit a new zzz particle every 1.2 s while sleeping
+    zzzInterval.current = setInterval(() => {
+      setZzzParticles((prev) => [
+        ...prev,
+        { id: Date.now() + Math.random() },
+      ]);
+    }, 1200);
+  }, []);
+
+  const stopZzzLoop = useCallback(() => {
+    clearInterval(zzzInterval.current);
+    setZzzParticles([]);
+  }, []);
+
+  const resetSleepTimer = useCallback(() => {
+    if (sleeping) {
+      setSleeping(false);
+      stopZzzLoop();
+    }
+    clearTimeout(sleepTimer.current);
+    sleepTimer.current = setTimeout(() => {
+      setSleeping(true);
+      startZzzLoop();
+    }, SLEEP_TIMEOUT_MS);
+  }, [sleeping, startZzzLoop, stopZzzLoop]);
+
+  // Kick off sleep timer on mount
+  useEffect(() => {
+    resetSleepTimer();
+    return () => {
+      clearTimeout(sleepTimer.current);
+      clearInterval(zzzInterval.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* ─────────────────────────────────────────
+     Random speech bubble
+  ───────────────────────────────────────── */
+  const scheduleNextSpeech = useCallback(() => {
+    clearTimeout(speechTimer.current);
+    const delay = SPEECH_MIN_MS + Math.random() * (SPEECH_MAX_MS - SPEECH_MIN_MS);
+    speechTimer.current = setTimeout(() => {
+      const msg = RANDOM_SPEECHES[Math.floor(Math.random() * RANDOM_SPEECHES.length)];
+      setTooltip(msg);
+      clearTimeout(tooltipTimer.current);
+      tooltipTimer.current = setTimeout(() => {
+        setTooltip(null);
+        scheduleNextSpeech();
+      }, SPEECH_SHOW_MS);
+    }, delay);
+  }, []);
+
+  useEffect(() => {
+    scheduleNextSpeech();
+    return () => {
+      clearTimeout(speechTimer.current);
+      clearTimeout(tooltipTimer.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* ─────────────────────────────────────────
@@ -164,7 +359,9 @@ export default function PetCompanion() {
         isDragging.current = false;
       }
     }, LONG_PRESS_MS);
-  }, [pos]);
+
+    resetSleepTimer();
+  }, [pos, resetSleepTimer]);
 
   const onPointerMove = useCallback((e) => {
     if (!isDragging.current) return;
@@ -206,11 +403,11 @@ export default function PetCompanion() {
   }, [clampPos, savePos]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ─────────────────────────────────────────
-     Tap handler — sparkles + jump
+     Tap handler — hearts + jump
   ───────────────────────────────────────── */
   const tapCount = useRef(0);
 
-  const MESSAGES = [
+  const TAP_MESSAGES = [
     "Meow! 🌙",
     "Don't forget to save your memories! ✨",
     "I'm watching over your capsules 🔮",
@@ -219,6 +416,8 @@ export default function PetCompanion() {
   ];
 
   const handleTap = useCallback(() => {
+    resetSleepTimer();
+
     setTapped(true);
     setTimeout(() => setTapped(false), 300);
 
@@ -226,42 +425,50 @@ export default function PetCompanion() {
     setAnimState("tap");
     setTimeout(() => setAnimState("idle"), 500);
 
-    // Sparkles
-    setParticles(makeBurst(6));
+    // Sparkles + floating hearts
+    setParticles(makeBurst(4));
+    setFloatingHearts(makeFloatingHearts(4));
 
-    // Tooltip
-    const msg = MESSAGES[tapCount.current % MESSAGES.length];
+    // Tooltip (tap cycle)
+    const msg = TAP_MESSAGES[tapCount.current % TAP_MESSAGES.length];
     tapCount.current += 1;
+    clearTimeout(tooltipTimer.current);
     setTooltip(msg);
-    setTimeout(() => setTooltip(null), 2200);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    tooltipTimer.current = setTimeout(() => setTooltip(null), 2200);
+  }, [resetSleepTimer]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ─────────────────────────────────────────
      Public event API — capsule / message hooks
-     Dispatch custom DOM events from anywhere in the app:
-       window.dispatchEvent(new CustomEvent("lumi:capsule-created"))
-       window.dispatchEvent(new CustomEvent("lumi:capsule-unlocked"))
-       window.dispatchEvent(new CustomEvent("lumi:message-received"))
   ───────────────────────────────────────── */
   useEffect(() => {
     const onCapsuleCreated = () => {
-      setParticles(makeHearts(7));
-      setTooltip("Capsule sealed! 💜");
-      setTimeout(() => setTooltip(null), 2200);
+      resetSleepTimer();
+      // Jump + confetti + speech
+      setAnimState("tap");
+      setTimeout(() => setAnimState("idle"), 500);
+      setConfetti(makeConfetti(22));
+      clearTimeout(tooltipTimer.current);
+      setTooltip("Yay! New capsule created! 🎉");
+      tooltipTimer.current = setTimeout(() => setTooltip(null), 3000);
     };
     const onCapsuleUnlocked = () => {
-      setParticles(makeStars(7));
+      resetSleepTimer();
+      // Celebrate + sparkle burst
+      setParticles([...makeStars(8), ...makeBurst(6)]);
       setAnimState("bounce");
       setTimeout(() => setAnimState("idle"), 800);
+      clearTimeout(tooltipTimer.current);
       setTooltip("Capsule unlocked! ⭐");
-      setTimeout(() => setTooltip(null), 2200);
+      tooltipTimer.current = setTimeout(() => setTooltip(null), 2200);
     };
     const onMessageReceived = () => {
+      resetSleepTimer();
       setAnimState("bounce");
       setTimeout(() => setAnimState("idle"), 800);
       setParticles(makeBurst(5));
+      clearTimeout(tooltipTimer.current);
       setTooltip("New message! 📬");
-      setTimeout(() => setTooltip(null), 2200);
+      tooltipTimer.current = setTimeout(() => setTooltip(null), 2200);
     };
 
     window.addEventListener("lumi:capsule-created",  onCapsuleCreated);
@@ -272,7 +479,51 @@ export default function PetCompanion() {
       window.removeEventListener("lumi:capsule-unlocked", onCapsuleUnlocked);
       window.removeEventListener("lumi:message-received", onMessageReceived);
     };
-  }, []);
+  }, [resetSleepTimer]);
+
+  /* ─────────────────────────────────────────
+     React to PetContext activeEvent
+     (triggered via triggerPetEvent in app code)
+  ───────────────────────────────────────── */
+  useEffect(() => {
+    if (!activeEvent) return;
+    resetSleepTimer();
+
+    const { type, effect, animation, message, duration } = activeEvent;
+
+    // Animation
+    if (animation === "jump" || animation === "celebrate") {
+      setAnimState("tap");
+      setTimeout(() => setAnimState("idle"), 500);
+    } else if (animation === "bounce" || animation === "tailWag") {
+      setAnimState("bounce");
+      setTimeout(() => setAnimState("idle"), 900);
+    }
+
+    // Effect
+    if (effect === "confetti") {
+      setConfetti(makeConfetti(24));
+    } else if (effect === "sparkleBurst") {
+      setParticles([...makeStars(8), ...makeBurst(8)]);
+    } else if (effect === "floatingHearts") {
+      setFloatingHearts(makeFloatingHearts(6));
+    } else if (effect === "heart") {
+      setParticles(makeHearts(6));
+    } else if (effect === "sparkle") {
+      setParticles(makeBurst(6));
+    }
+
+    // Speech bubble
+    if (message) {
+      clearTimeout(tooltipTimer.current);
+      setTooltip(message);
+      tooltipTimer.current = setTimeout(() => setTooltip(null), duration ?? 3000);
+    }
+
+    // Clear the event from context after consuming it
+    const clearId = setTimeout(clearPetEvent, duration ?? 3000);
+    return () => clearTimeout(clearId);
+  }, [activeEvent]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ─────────────────────────────────────────
      Hide / show
@@ -345,14 +596,29 @@ export default function PetCompanion() {
         ease: "easeInOut",
       },
     },
+    sleep: {
+      y: [0, -3, 0],
+      transition: {
+        duration: 5,
+        repeat: Infinity,
+        ease: "easeInOut",
+      },
+    },
   };
 
   const breatheVariants = {
     animate: {
-      scaleX: [1, 1.03, 1, 1.025, 1],
-      scaleY: [1, 0.97, 1, 0.975, 1],
+      scale: [1, 1.05, 1, 1.03, 1],
       transition: {
         duration: 3.6,
+        repeat: Infinity,
+        ease: "easeInOut",
+      },
+    },
+    sleep: {
+      scale: [1, 1.02, 1],
+      transition: {
+        duration: 4.5,
         repeat: Infinity,
         ease: "easeInOut",
       },
@@ -360,7 +626,7 @@ export default function PetCompanion() {
   };
 
   const tapVariant = {
-    scale: tapped ? [1, 1.22, 0.92, 1.08, 1] : 1,
+    scale: tapped ? [1, 1.22, 0.92, 1.08, 1] : undefined,
     transition: { duration: 0.35 },
   };
 
@@ -374,15 +640,62 @@ export default function PetCompanion() {
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
     >
+      {/* ── Sleep ZZZ particles ── */}
+      <AnimatePresence>
+        {sleeping && zzzParticles.map((z) => (
+          <SleepZzz
+            key={z.id}
+            id={z.id}
+            onDone={() => setZzzParticles((s) => s.filter((x) => x.id !== z.id))}
+          />
+        ))}
+      </AnimatePresence>
+
+      {/* ── Sleep emoji ── */}
+      <AnimatePresence>
+        {sleeping && (
+          <motion.div
+            className="lumi-sleep-indicator"
+            key="sleep-emoji"
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.5 }}
+            transition={{ duration: 0.4 }}
+          >
+            😴
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Floating hearts (tap reaction) ── */}
+      <AnimatePresence>
+        {floatingHearts.map((h) => (
+          <FloatingHeart
+            key={h.id}
+            id={h.id}
+            onDone={() => setFloatingHearts((s) => s.filter((x) => x.id !== h.id))}
+          />
+        ))}
+      </AnimatePresence>
+
       {/* ── Floating + breathing pet ── */}
-      <motion.div variants={floatVariants} animate="animate">
+      <motion.div
+        variants={floatVariants}
+        animate={sleeping ? "sleep" : "animate"}
+      >
         <motion.div
           className={`lumi-pet ${tapped ? "tapped" : ""}`}
           variants={breatheVariants}
-          animate={{ ...breatheVariants.animate, ...tapVariant }}
+          animate={
+            tapped
+              ? { ...tapVariant }
+              : sleeping
+              ? breatheVariants.sleep
+              : breatheVariants.animate
+          }
         >
           {/* Aura ring */}
-          <div className="lumi-aura" />
+          <div className={`lumi-aura ${sleeping ? "lumi-aura--dim" : ""}`} />
 
           {/* Lumi PNG */}
           <LumiImage animState={animState} />
@@ -396,10 +709,21 @@ export default function PetCompanion() {
               onDone={() => setParticles((s) => s.filter((x) => x.id !== p.id))}
             />
           ))}
+
+          {/* Confetti burst */}
+          <AnimatePresence>
+            {confetti.map((c) => (
+              <ConfettiParticle
+                key={c.id}
+                id={c.id}
+                onDone={() => setConfetti((s) => s.filter((x) => x.id !== c.id))}
+              />
+            ))}
+          </AnimatePresence>
         </motion.div>
       </motion.div>
 
-      {/* ── Tooltip ── */}
+      {/* ── Tooltip / speech bubble ── */}
       <AnimatePresence>
         {tooltip && (
           <motion.div
