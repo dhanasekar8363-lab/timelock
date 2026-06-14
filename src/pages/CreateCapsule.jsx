@@ -466,9 +466,18 @@ function CreateCapsule() {
   // If a user reports "Invalid Date" on an older device, swap these for date-fns
   // parse() calls.  Until then, the native format assumption is safe for the
   // target audience.
-  const unlockDateTimeString = unlockDate && unlockTime
-    ? `${unlockDate}T${unlockTime}`
-    : unlockDate ? `${unlockDate}T00:00` : "";
+  //
+  // TIMEZONE FIX: `new Date("YYYY-MM-DDTHH:MM")` — a string with no UTC offset —
+  // is parsed by all WHATWG-compliant browsers as LOCAL time (the user's device
+  // timezone). Calling `.toISOString()` converts that local instant to UTC and
+  // appends "Z", giving Supabase an unambiguous UTC timestamp.
+  // e.g. user in IST picks 20:25 → stored as "2026-06-14T14:55:00.000Z" (UTC).
+  const unlockDateTimeString = (() => {
+    if (!unlockDate) return "";
+    const localStr = unlockTime ? `${unlockDate}T${unlockTime}` : `${unlockDate}T00:00`;
+    const asUtc = new Date(localStr);
+    return isNaN(asUtc.getTime()) ? "" : asUtc.toISOString();
+  })();
 
   const unlockDateDisplay = unlockDate
     ? new Date(`${unlockDate}T${unlockTime || "00:00"}`).toLocaleDateString("en-GB", {
@@ -489,9 +498,14 @@ function CreateCapsule() {
 
   // FIX 3: reject past unlock dates so the capsule doesn't unlock immediately.
   // Evaluate against Date.now() at render time; re-evaluates on every state change.
-  const unlockDateTimeMs =
-    unlockDate && unlockTime ? new Date(`${unlockDate}T${unlockTime}`).getTime()
-    : unlockDate             ? new Date(`${unlockDate}T00:00`).getTime()
+  //
+  // TIMEZONE FIX: reuse unlockDateTimeString (already a UTC ISO string) so that
+  // validation and the value stored in Supabase are computed from the same instant.
+  // Previously this re-parsed the raw local string, which could disagree with the
+  // UTC-converted value and allow a time that "passes" validation to arrive in
+  // Supabase already in the past after the offset is applied.
+  const unlockDateTimeMs = unlockDateTimeString
+    ? new Date(unlockDateTimeString).getTime()
     : 0;
   const isUnlockInFuture = unlockDateTimeMs > Date.now();
 
