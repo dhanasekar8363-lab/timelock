@@ -4,14 +4,11 @@ import "./index.css";
 import App from "./App.jsx";
 
 import { AuthProvider } from "./contexts/AuthContext";
-import PetCompanion from "./components/PetCompanion";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <AuthProvider>
       <App />
-      {/* Lumi the cosmic cat — global floating pet, renders above all pages */}
-      <PetCompanion />
     </AuthProvider>
   </StrictMode>
 );
