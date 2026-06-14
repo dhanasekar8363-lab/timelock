@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { supabase, sendMessage, isEmail } from "../services/supabase";
+import { supabase, sendMessage, isEmail, searchProfiles } from "../services/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { playSound } from "../utils/sounds";
 import "./CreateCapsule.css";
@@ -275,6 +275,7 @@ function CreateCapsule() {
   const [userSearchQuery,   setUserSearchQuery]   = useState("");
   const [userSearchResults, setUserSearchResults] = useState([]);
   const [userSearchLoading, setUserSearchLoading] = useState(false);
+  const [userSearchError,   setUserSearchError]   = useState("");
   const [selectedUserId,    setSelectedUserId]    = useState(null);
   const [selectedUserName,  setSelectedUserName]  = useState("");
   const [selectedUserEmail, setSelectedUserEmail] = useState("");
@@ -397,13 +398,29 @@ function CreateCapsule() {
     setSelectedUserAvatar(null);
     setUserSearchQuery("");
     setUserSearchResults([]);
+    setUserSearchError("");
     setReceiverName("");
     setShowManualReceiver(false);
   };
 
-  /* ── user search (Fix 4: debounced 300 ms to prevent race conditions) ── */
+  /* ── user search (Fix 4: debounced 300 ms to prevent race conditions)
+     FIX 8: root-cause fixes for "search shows no results":
+       1. The query previously matched `display_name` only. The field is
+          labelled "Search by username…", so it now matches BOTH
+          `username` and `display_name` (via the searchProfiles helper).
+       2. The query previously did `const { data } = await supabase...`,
+          discarding `error`. Supabase/PostgREST does NOT throw on RLS or
+          query errors — it returns `{ data: null, error }` — so any
+          failure (including a misconfigured RLS policy on `profiles`)
+          silently produced an empty result with the `try/catch` never
+          firing. Errors are now captured, logged, and surfaced via
+          `userSearchError` so the dropdown can show a real failure
+          message instead of just looking "empty".
+       3. The current user is excluded from their own search results. ── */
   const searchUsers = (query) => {
     setUserSearchQuery(query);
+    setUserSearchError("");
+
     if (!query.trim()) {
       setUserSearchResults([]);
       setShowUserDropdown(false);
@@ -416,29 +433,27 @@ function CreateCapsule() {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     searchDebounceRef.current = setTimeout(async () => {
       setUserSearchLoading(true);
-      try {
-        const { data } = await supabase
-          .from("profiles")
-          .select("id, display_name, avatar_url, email")
-          .ilike("display_name", `%${query}%`)
-          .limit(8);
-        setUserSearchResults(data || []);
-      } catch {
+      const { data, error } = await searchProfiles(query, user?.id);
+      if (error) {
         setUserSearchResults([]);
-      } finally {
-        setUserSearchLoading(false);
+        setUserSearchError("Couldn't load results. Please try again.");
+      } else {
+        setUserSearchResults(data);
+        setUserSearchError("");
       }
+      setUserSearchLoading(false);
     }, 300);
   };
 
   const selectUser = (user) => {
     setSelectedUserId(user.id);
-    setSelectedUserName(user.display_name);
+    setSelectedUserName(user.display_name || user.username);
     setSelectedUserEmail(user.email || "");
     setSelectedUserAvatar(user.avatar_url);
     setShareWithUserId(user.id);
     setUserSearchQuery("");
     setUserSearchResults([]);
+    setUserSearchError("");
     setShowUserDropdown(false);
   };
 
@@ -959,7 +974,7 @@ function CreateCapsule() {
                     placeholder="Search by username…"
                     value={userSearchQuery}
                     onChange={(e) => searchUsers(e.target.value)}
-                    onFocus={() => userSearchResults.length > 0 && setShowUserDropdown(true)}
+                    onFocus={() => userSearchQuery.trim() && setShowUserDropdown(true)}
                   />
                 </div>
 
@@ -997,12 +1012,23 @@ function CreateCapsule() {
               </>
             )}
 
-            {/* Dropdown results */}
-            {showUserDropdown && !selectedUserId && (userSearchLoading || userSearchResults.length > 0) && (
+            {/* Dropdown results
+                FIX 8: previously this only rendered when
+                `userSearchLoading || userSearchResults.length > 0`, so a
+                completed search with zero matches (e.g. due to an RLS
+                policy silently filtering out other users' profiles)
+                rendered NOTHING — the "recipient selection" appeared to
+                vanish entirely with no feedback. Now the dropdown stays
+                open while there's a query, showing "Searching…", a
+                friendly error if the request failed, "No users found" for
+                a genuine empty result, or the matching rows. */}
+            {showUserDropdown && !selectedUserId && userSearchQuery.trim() && (
               <div className="cc-user-dropdown">
                 {userSearchLoading ? (
                   <div className="cc-user-dropdown-empty">Searching…</div>
-                ) : (
+                ) : userSearchError ? (
+                  <div className="cc-user-dropdown-empty">{userSearchError}</div>
+                ) : userSearchResults.length > 0 ? (
                   userSearchResults.map((user) => (
                     <button
                       key={user.id}
@@ -1015,9 +1041,11 @@ function CreateCapsule() {
                       ) : (
                         <span className="cc-user-dropdown-avatar-fallback">👤</span>
                       )}
-                      <span className="cc-user-dropdown-name">{user.display_name}</span>
+                      <span className="cc-user-dropdown-name">{user.display_name || user.username}</span>
                     </button>
                   ))
+                ) : (
+                  <div className="cc-user-dropdown-empty">No users found</div>
                 )}
               </div>
             )}

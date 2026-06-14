@@ -89,6 +89,87 @@ export const getRecipientEmail = (capsule) => {
   return ''
 }
 
+// ==================== PROFILE SEARCH FUNCTIONS ====================
+//
+// ROOT CAUSE NOTE (recipient search returning no results):
+// `searchProfiles` below is used by CreateCapsule's "Who is this for?"
+// recipient search. If this query returns an empty array for every query
+// (even though the input updates fine and no JS error is thrown), the
+// most likely cause is the RLS SELECT policy on `profiles`.
+//
+// A common default policy is:
+//
+//   USING (auth.uid() = id)   -- "users can only read their own profile row"
+//
+// Under that policy, searching for ANY OTHER user's profile returns an
+// empty array — Postgres/PostgREST does not raise an error for rows that
+// RLS filters out, it just silently omits them. The query "succeeds" with
+// `data = []`, which is indistinguishable from "no matches" unless you
+// already know to suspect RLS.
+//
+// FIX: add (or replace with) a policy that allows any authenticated user
+// to read the public-facing columns of other profiles, e.g.:
+//
+//   CREATE POLICY "Profiles are viewable by authenticated users"
+//   ON public.profiles
+//   FOR SELECT
+//   TO authenticated
+//   USING (true);
+//
+// If you'd rather not expose every column to everyone, restrict via a
+// view or `security_invoker` policy that only exposes
+// (id, username, display_name, avatar_url, email) — the columns
+// `searchProfiles` actually selects.
+
+/**
+ * Search profiles by username or display name (case-insensitive, partial
+ * match). Used by the "Who is this for?" recipient picker in CreateCapsule.
+ *
+ * Matches BOTH `username` and `display_name` — the search box is labelled
+ * "Search by username…", but many profiles only have `display_name`
+ * populated, so matching on `display_name` alone misses real users.
+ *
+ * @param {string} query             Search text typed by the user.
+ * @param {string|null} [excludeUserId] Caller's own id, so they don't show
+ *                                       up as a result when searching.
+ * @param {number} [limit=8]
+ * @returns {{ data: Array, error: object|null }}
+ *          `error` is null both when the query succeeds with zero rows AND
+ *          when RLS filters everything out — see note above. A non-null
+ *          `error` means the request itself failed (bad column, network,
+ *          auth, etc.) and is logged to the console for debugging.
+ */
+export const searchProfiles = async (query, excludeUserId = null, limit = 8) => {
+  try {
+    const trimmed = (query || '').trim()
+    if (!trimmed) return { data: [], error: null }
+
+    // `,` and `()` are structural characters in PostgREST's `or=()` filter
+    // syntax. Strip them from the search term so a username/display name
+    // containing them can't break the filter (these characters are not
+    // expected in usernames or display names anyway).
+    const safe = trimmed.replace(/[,()]/g, '')
+    if (!safe) return { data: [], error: null }
+
+    let q = supabase
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, email')
+      .or(`username.ilike.%${safe}%,display_name.ilike.%${safe}%`)
+      .limit(limit)
+
+    if (excludeUserId) {
+      q = q.neq('id', excludeUserId)
+    }
+
+    const { data, error } = await q
+    if (error) throw error
+    return { data: data || [], error: null }
+  } catch (error) {
+    console.error('Error searching profiles:', error)
+    return { data: [], error }
+  }
+}
+
 // ==================== FOLLOW FUNCTIONS ====================
 
 export const followUser = async (followerId, followingId) => {
