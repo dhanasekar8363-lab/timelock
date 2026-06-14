@@ -450,6 +450,7 @@ function CreateCapsule() {
       slug,
     };
 
+    console.log("receiver_email =", recipientEmail);
     console.log("INSERTING", payload);
 
     const { data, error: err } = await supabase
