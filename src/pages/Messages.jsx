@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback, useMemo, memo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase, getConversations, getMessages, sendMessage } from "../services/supabase";
-import homeBg from "../assets/backgrounds/main-bg.jpg";
+import homeBg from "../assets/backgrounds/message.jpg";
 import "./Messages.css";
 
 // ==================== UTILITY FUNCTIONS ====================
