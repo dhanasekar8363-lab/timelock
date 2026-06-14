@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback, useMemo, memo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase, getConversations, getMessages, sendMessage } from "../services/supabase";
+import { playSound } from "../utils/sounds";
 import homeBg from "../assets/backgrounds/message.jpg";
 import "./Messages.css";
 
@@ -353,6 +354,9 @@ export default function Messages() {
         },
         (payload) => {
           if (payload.new.sender_id !== selectedConv.user_id) return;
+
+          // 🔊 Play notification sound for incoming messages
+          playSound("notification");
 
           setMessages(prev => {
             if (prev.find(m => m.id === payload.new.id)) return prev;

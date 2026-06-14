@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase, getRecipientDisplayName, getRecipientEmail } from "../services/supabase";
+import { playSound } from "../utils/sounds";
 import LockedCapsule from "./LockedCapsule";
 import UnlockedCapsule from "./UnlockedCapsule";
 
@@ -87,12 +88,20 @@ function CapsuleViewer() {
       const unlocked = unlockDate
         ? new Date(unlockDate).getTime() <= Date.now()
         : true; // no date set → treat as open
+
+      // 🔊 Play unlock sound when capsule is already open on arrival
+      if (unlocked) playSound("unlock");
+
       setIsUnlocked(unlocked);
     })();
   }, [slug]);
 
   /* Callback from LockedCapsule when countdown hits zero */
-  const handleUnlock = () => setIsUnlocked(true);
+  const handleUnlock = () => {
+    // 🔊 Play unlock sound when countdown reaches zero mid-session
+    playSound("unlock");
+    setIsUnlocked(true);
+  };
 
   if (loading)   return <LoadingScreen />;
   if (notFound)  return <ErrorScreen />;

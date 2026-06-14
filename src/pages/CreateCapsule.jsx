@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase, sendMessage, isEmail } from "../services/supabase";
+import { playSound } from "../utils/sounds";
 import "./CreateCapsule.css";
 import createBg from "../assets/backgrounds/create-bg.jpg";
 import coverLove       from "../covers/love.png";
@@ -463,6 +464,10 @@ function CreateCapsule() {
     setUploadProgress("");
 
     if (err) { setError(err.message); return; }
+
+    // 🔊 Play send sound on successful capsule creation
+    playSound("capsuleSend");
+
     const savedSlug = data?.[0]?.slug || slug;
     const capsuleUrl = `${window.location.origin}/capsule/${savedSlug}`;
 
