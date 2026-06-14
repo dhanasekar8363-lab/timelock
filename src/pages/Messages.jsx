@@ -6,10 +6,6 @@ import "./Messages.css";
 
 // ==================== UTILITY FUNCTIONS ====================
 
-/**
- * Parse capsule JSON from message content.
- * Returns { type: 'capsule', ...parsed } or null
- */
 function tryParseCapsule(content) {
   if (!content) return null;
   try {
@@ -19,9 +15,6 @@ function tryParseCapsule(content) {
   return null;
 }
 
-/**
- * Get preview text for conversation list — handles capsule detection
- */
 function getPreviewText(msg) {
   if (!msg) return "Start a conversation";
   const capsule = tryParseCapsule(msg);
@@ -29,25 +22,16 @@ function getPreviewText(msg) {
   return msg;
 }
 
-/**
- * Parse message content — detects capsule JSON
- */
 function parseMessage(content) {
   const capsule = tryParseCapsule(content);
   if (capsule) return { isCapsule: true, ...capsule };
   return { isCapsule: false, text: content };
 }
 
-/**
- * Generate avatar URL with fallback
- */
 const getAvatarUrl = (name, url) => {
   return url || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || "User")}&background=7c5cff&color=fff`;
 };
 
-/**
- * Memoized avatar component
- */
 const Avatar = memo(({ name, url, className, onError }) => (
   <img
     src={getAvatarUrl(name, url)}
@@ -78,13 +62,10 @@ function SkeletonConv() {
 
 // ==================== CAPSULE BUBBLE ====================
 
-/**
- * Capsule message bubble — memoized for performance
- */
 const CapsuleBubble = memo(({ data, navigate }) => {
   const coverEmojis = { love: "💌", birthday: "🎂", future: "🚀", graduation: "🎓" };
   const emoji = coverEmojis[data.cover_type] || "📦";
-  
+
   const handleClick = useCallback(() => {
     navigate(`/capsule/${data.slug}`);
   }, [navigate, data.slug]);
@@ -111,18 +92,18 @@ CapsuleBubble.displayName = "CapsuleBubble";
 
 // ==================== CONVERSATION ITEM ====================
 
-/**
- * Single conversation list item — memoized for performance
- */
 const ConversationItem = memo(({ conv, onSelect }) => {
   const handleClick = useCallback(() => onSelect(conv), [conv, onSelect]);
-  
+
   const onAvatarError = useCallback((e) => {
     e.target.src = getAvatarUrl(conv.user?.display_name, null);
   }, [conv.user?.display_name]);
 
+  // Simulate online status — replace with real presence if available
+  const isOnline = conv.unread;
+
   return (
-    <div className="conv-item" onClick={handleClick}>
+    <div className="conv-card" onClick={handleClick}>
       <div className="conv-avatar-wrap">
         <Avatar
           name={conv.user?.display_name}
@@ -130,7 +111,7 @@ const ConversationItem = memo(({ conv, onSelect }) => {
           className="conv-avatar"
           onError={onAvatarError}
         />
-        {conv.unread && <span className="unread-dot" />}
+        <span className={`online-dot ${isOnline ? "online" : "offline"}`} />
       </div>
       <div className="conv-info">
         <div className="conv-name-row">
@@ -143,6 +124,7 @@ const ConversationItem = memo(({ conv, onSelect }) => {
         </div>
         <p className="conv-preview">{getPreviewText(conv.last_message)}</p>
       </div>
+      {conv.unread && <span className="unread-badge">1</span>}
     </div>
   );
 });
@@ -150,9 +132,6 @@ ConversationItem.displayName = "ConversationItem";
 
 // ==================== MESSAGE BUBBLE ====================
 
-/**
- * Single message bubble — memoized for performance
- */
 const MessageBubble = memo(({ msg, user, navigate }) => {
   const parsed = parseMessage(msg.content);
   const isMine = msg.sender_id === user.id;
@@ -186,6 +165,8 @@ export default function Messages() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [user, setUser] = useState(null);
   const [conversations, setConversations] = useState([]);
+  const [filteredConvs, setFilteredConvs] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedConv, setSelectedConv] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
@@ -196,19 +177,28 @@ export default function Messages() {
   const userRef = useRef(null);
   const subscriptionRef = useRef(null);
 
-  // Get initial params once
   const initialParams = useMemo(() => ({
     userId: searchParams.get("userId"),
     userName: searchParams.get("userName"),
   }), [searchParams]);
 
+  // Filter conversations by search
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredConvs(conversations);
+    } else {
+      const q = searchQuery.toLowerCase();
+      setFilteredConvs(conversations.filter(c =>
+        (c.user?.display_name || "").toLowerCase().includes(q) ||
+        (c.last_message || "").toLowerCase().includes(q)
+      ));
+    }
+  }, [searchQuery, conversations]);
+
   // ==================== LOAD CONVERSATIONS ====================
 
   const loadConversations = useCallback(async (uid) => {
-    if (!uid) {
-      console.warn("loadConversations called with no uid");
-      return;
-    }
+    if (!uid) return;
     try {
       setLoading(true);
       const { data, error } = await getConversations(uid);
@@ -223,7 +213,6 @@ export default function Messages() {
   }, []);
 
   // ==================== OPEN CONVERSATION ====================
-  // Declared before handleInitialDeepLink so it can be referenced in its deps.
 
   const openConversation = useCallback(async (conv, uid) => {
     setSelectedConv(conv);
@@ -246,7 +235,6 @@ export default function Messages() {
     if (!targetUserId) return;
 
     try {
-      // Load fresh conversations
       const { data: convs, error } = await getConversations(uid);
       if (error) throw error;
 
@@ -254,7 +242,6 @@ export default function Messages() {
       if (existing) {
         await openConversation(existing, uid);
       } else {
-        // Create temporary conversation
         const tempConv = {
           user_id: targetUserId,
           user: { display_name: targetUserName || "User", avatar_url: null },
@@ -264,7 +251,6 @@ export default function Messages() {
         };
         await openConversation(tempConv, uid);
       }
-      // Clear params after handling
       setSearchParams({});
     } catch (err) {
       console.error("Error handling deep link:", err);
@@ -284,10 +270,8 @@ export default function Messages() {
         setUser(data.user);
         userRef.current = data.user;
 
-        // Load conversations
         await loadConversations(data.user.id);
 
-        // Handle deep link if present
         if (initialParams.userId) {
           await handleInitialDeepLink(data.user.id, initialParams.userId, initialParams.userName);
         }
@@ -314,14 +298,12 @@ export default function Messages() {
       const { data, error } = await sendMessage(userRef.current.id, selectedConv.user_id, msgText);
       if (error) throw error;
 
-      // Add message to list if not already there
       if (data) {
         setMessages(prev =>
           prev.find(m => m.id === data.id) ? prev : [...prev, data]
         );
       }
 
-      // Update conversation list
       const now = new Date().toISOString();
       setConversations(prev => {
         const exists = prev.find(c => c.user_id === selectedConv.user_id);
@@ -336,7 +318,6 @@ export default function Messages() {
       });
     } catch (err) {
       console.error("Error sending message:", err);
-      // Restore message on error
       setNewMessage(msgText);
     } finally {
       setSending(false);
@@ -353,7 +334,6 @@ export default function Messages() {
 
   useEffect(() => {
     if (!user || !selectedConv) {
-      // Clean up existing subscription
       if (subscriptionRef.current) {
         supabase.removeChannel(subscriptionRef.current);
         subscriptionRef.current = null;
@@ -361,7 +341,6 @@ export default function Messages() {
       return;
     }
 
-    // Subscribe to new messages
     const channel = supabase
       .channel(`msg-${user.id}-${selectedConv.user_id}`)
       .on(
@@ -373,16 +352,13 @@ export default function Messages() {
           filter: `recipient_id=eq.${user.id}`,
         },
         (payload) => {
-          // Only add if it's from the current conversation partner
           if (payload.new.sender_id !== selectedConv.user_id) return;
-          
+
           setMessages(prev => {
-            // Prevent duplicates
             if (prev.find(m => m.id === payload.new.id)) return prev;
             return [...prev, payload.new];
           });
 
-          // Update conversation list with new message
           setConversations(prev =>
             prev.map(c =>
               c.user_id === selectedConv.user_id
@@ -444,27 +420,68 @@ export default function Messages() {
       {/* Overlay gradient */}
       <div className="messages-overlay" />
 
+      {/* Floating particles */}
+      <div className="particles" aria-hidden="true">
+        {Array.from({ length: 18 }).map((_, i) => (
+          <span key={i} className="particle" style={{
+            left: `${Math.random() * 100}%`,
+            animationDelay: `${Math.random() * 6}s`,
+            animationDuration: `${6 + Math.random() * 6}s`,
+            width: `${2 + Math.random() * 3}px`,
+            height: `${2 + Math.random() * 3}px`,
+            opacity: 0.3 + Math.random() * 0.4,
+          }} />
+        ))}
+      </div>
+
       {!selectedConv ? (
         // ==================== CONVERSATIONS LIST VIEW ====================
         <div className="conv-panel">
-          <div className="msg-header">
-            <h1>Messages</h1>
+          {/* Hero header */}
+          <div className="msg-hero">
+            <h1 className="msg-hero-title">Messages</h1>
+            <p className="msg-hero-subtitle">Your conversations and connections</p>
+
+            {/* Search row */}
+            <div className="search-row">
+              <div className="search-wrap">
+                <svg className="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input
+                  className="search-input"
+                  type="text"
+                  placeholder="Search messages..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  autoComplete="off"
+                />
+              </div>
+              <button className="filter-btn" aria-label="Filter conversations">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+                </svg>
+              </button>
+            </div>
           </div>
 
+          {/* Conversation list */}
           {loading ? (
             <SkeletonConv />
-          ) : conversations.length === 0 ? (
+          ) : filteredConvs.length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">📭</div>
-              <p>No conversations yet</p>
-              <span className="hint">Find someone to message</span>
-              <button className="find-btn" onClick={() => navigate("/search")}>
-                Find People
-              </button>
+              <p>{searchQuery ? "No results found" : "No conversations yet"}</p>
+              <span className="hint">{searchQuery ? "Try a different name" : "Find someone to message"}</span>
+              {!searchQuery && (
+                <button className="find-btn" onClick={() => navigate("/search")}>
+                  Find People
+                </button>
+              )}
             </div>
           ) : (
             <div className="conv-list">
-              {conversations.map(conv => (
+              {filteredConvs.map(conv => (
                 <ConversationItem
                   key={conv.user_id}
                   conv={conv}
@@ -473,6 +490,18 @@ export default function Messages() {
               ))}
             </div>
           )}
+
+          {/* Floating compose button */}
+          <button
+            className="compose-fab"
+            onClick={() => navigate("/search")}
+            aria-label="New conversation"
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 20h9"/>
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+            </svg>
+          </button>
         </div>
       ) : (
         // ==================== CHAT VIEW ====================
@@ -484,18 +513,22 @@ export default function Messages() {
                 <polyline points="15 18 9 12 15 6"/>
               </svg>
             </button>
-            <Avatar
-              name={selectedConv.user?.display_name}
-              url={selectedConv.user?.avatar_url}
-              className="chat-avatar"
-              onError={(e) => {
-                e.target.src = getAvatarUrl(selectedConv.user?.display_name, null);
-              }}
-            />
+            <div className="chat-avatar-wrap">
+              <Avatar
+                name={selectedConv.user?.display_name}
+                url={selectedConv.user?.avatar_url}
+                className="chat-avatar"
+                onError={(e) => {
+                  e.target.src = getAvatarUrl(selectedConv.user?.display_name, null);
+                }}
+              />
+              <span className="chat-online-dot" />
+            </div>
             <div className="chat-user-meta">
               <span className="chat-name">
                 {selectedConv.user?.display_name || "User"}
               </span>
+              <span className="chat-status">Active now</span>
             </div>
             <button className="profile-btn" onClick={handleViewProfile}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -519,6 +552,10 @@ export default function Messages() {
                   <Avatar
                     name={selectedConv.user?.display_name}
                     url={selectedConv.user?.avatar_url}
+                    className="chat-avatar-lg-img"
+                    onError={(e) => {
+                      e.target.src = getAvatarUrl(selectedConv.user?.display_name, null);
+                    }}
                   />
                 </div>
                 <p>{selectedConv.user?.display_name || "User"}</p>
@@ -539,7 +576,6 @@ export default function Messages() {
 
           {/* Input Row */}
           <div className="input-row">
-            {/* Capsule send button */}
             <button
               type="button"
               className="capsule-send-btn"
@@ -554,7 +590,6 @@ export default function Messages() {
               </svg>
             </button>
 
-            {/* Message form */}
             <form className="msg-form" onSubmit={handleSend}>
               <input
                 className="msg-input"
