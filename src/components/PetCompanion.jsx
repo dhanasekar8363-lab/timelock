@@ -9,7 +9,8 @@
  */
 
 import { useRef, useState, useEffect, useCallback } from "react";
-import { AnimatePresence, motion, useMotionValue, useSpring } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import lumi from "../assets/lumi.png";
 import "./PetCompanion.css";
 
 /* ─────────────────────────────────────────────
@@ -22,180 +23,46 @@ const PET_SIZE      = 72;   // px
 const LONG_PRESS_MS = 600;  // ms to trigger menu
 
 /* ─────────────────────────────────────────────
-   Lumi SVG — cosmic purple cat
-   Hand-crafted to match the reference image:
-   big blue eyes, moon crescent on forehead,
-   rounded body, fluffy tail, purple palette.
+   Lumi PNG image
 ───────────────────────────────────────────── */
-function LumiSVG({ blinking, expression }) {
-  // eye height animation for blink
-  const eyeRY = blinking ? 1 : 9;
-
-  const mouthPath =
-    expression === "happy"
-      ? "M 26 38 Q 32 44 38 38"   // smile
-      : expression === "surprised"
-      ? "M 29 39 Q 32 43 35 39"   // small O
-      : "M 27 39 Q 32 42 37 39";  // neutral
-
+function LumiImage({ animState }) {
   return (
-    <svg
-      className="lumi-svg"
-      viewBox="0 0 64 72"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-label="Lumi the cosmic cat"
-    >
-      <defs>
-        {/* Body gradient */}
-        <radialGradient id="bodyGrad" cx="50%" cy="40%" r="55%">
-          <stop offset="0%"   stopColor="#b47aff" />
-          <stop offset="55%"  stopColor="#7b3fcf" />
-          <stop offset="100%" stopColor="#4a1a9e" />
-        </radialGradient>
-
-        {/* Belly patch */}
-        <radialGradient id="bellyGrad" cx="50%" cy="50%" r="50%">
-          <stop offset="0%"   stopColor="#d4b0ff" stopOpacity="0.9" />
-          <stop offset="100%" stopColor="#9c5ee8" stopOpacity="0" />
-        </radialGradient>
-
-        {/* Eye shine */}
-        <radialGradient id="eyeGrad" cx="35%" cy="30%" r="60%">
-          <stop offset="0%"   stopColor="#a8eaff" />
-          <stop offset="50%"  stopColor="#3db8e8" />
-          <stop offset="100%" stopColor="#1a6fa8" />
-        </radialGradient>
-
-        {/* Inner ear */}
-        <radialGradient id="earGrad" cx="50%" cy="70%" r="60%">
-          <stop offset="0%"   stopColor="#e8a0ff" />
-          <stop offset="100%" stopColor="#b060e0" />
-        </radialGradient>
-
-        {/* Moon glow */}
-        <radialGradient id="moonGrad" cx="50%" cy="50%" r="50%">
-          <stop offset="0%"   stopColor="#ffe9a0" />
-          <stop offset="100%" stopColor="#ffc940" />
-        </radialGradient>
-
-        {/* Soft glow filter */}
-        <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
-          <feGaussianBlur stdDeviation="2.5" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-
-        {/* Highlight filter */}
-        <filter id="softHighlight">
-          <feGaussianBlur stdDeviation="1" />
-        </filter>
-      </defs>
-
-      {/* ── Tail (behind body) ── */}
-      <path
-        d="M 50 55 Q 68 48 64 62 Q 60 72 50 65 Z"
-        fill="url(#bodyGrad)"
-        opacity="0.95"
-      />
-      {/* Tail tip highlight */}
-      <ellipse cx="60" cy="63" rx="5" ry="4" fill="#c090ff" opacity="0.35" />
-
-      {/* ── Body ── */}
-      <ellipse cx="32" cy="52" rx="20" ry="17" fill="url(#bodyGrad)" />
-
-      {/* ── Belly highlight ── */}
-      <ellipse cx="32" cy="54" rx="11" ry="9" fill="url(#bellyGrad)" />
-
-      {/* ── Left ear ── */}
-      <polygon points="12,22 8,6 20,16" fill="url(#bodyGrad)" />
-      <polygon points="13,21 10,9  19,17" fill="url(#earGrad)" />
-
-      {/* ── Right ear ── */}
-      <polygon points="52,22 56,6 44,16" fill="url(#bodyGrad)" />
-      <polygon points="51,21 54,9 45,17" fill="url(#earGrad)" />
-
-      {/* ── Head ── */}
-      <ellipse cx="32" cy="28" rx="20" ry="18" fill="url(#bodyGrad)" />
-
-      {/* ── Head top highlight ── */}
-      <ellipse cx="28" cy="18" rx="10" ry="7" fill="#c8a0ff" opacity="0.3" />
-
-      {/* ── Left eye socket ── */}
-      <ellipse cx="23" cy="28" rx="7" ry="7.5" fill="#1a0840" />
-      {/* Left eye iris */}
-      <ellipse cx="23" cy="28" rx="6" ry={eyeRY} fill="url(#eyeGrad)" />
-      {/* Left pupil */}
-      <ellipse cx="23" cy="28" rx="3" ry={blinking ? 0.5 : 4.5} fill="#0b1e38" />
-      {/* Left eye shine */}
-      <circle cx="25" cy="25" r="1.8" fill="white" opacity="0.9" />
-      <circle cx="21" cy="30" r="0.9" fill="white" opacity="0.5" />
-
-      {/* ── Right eye socket ── */}
-      <ellipse cx="41" cy="28" rx="7" ry="7.5" fill="#1a0840" />
-      {/* Right eye iris */}
-      <ellipse cx="41" cy="28" rx="6" ry={eyeRY} fill="url(#eyeGrad)" />
-      {/* Right pupil */}
-      <ellipse cx="41" cy="28" rx="3" ry={blinking ? 0.5 : 4.5} fill="#0b1e38" />
-      {/* Right eye shine */}
-      <circle cx="43" cy="25" r="1.8" fill="white" opacity="0.9" />
-      <circle cx="39" cy="30" r="0.9" fill="white" opacity="0.5" />
-
-      {/* ── Nose ── */}
-      <path d="M 30.5 34 L 32 36 L 33.5 34 Z" fill="#e080c0" />
-
-      {/* ── Mouth ── */}
-      <path d={mouthPath} stroke="#c060a8" strokeWidth="1.4" fill="none" strokeLinecap="round" />
-
-      {/* ── Whiskers left ── */}
-      <line x1="5"  y1="32" x2="22" y2="33" stroke="#d0a8ff" strokeWidth="0.8" opacity="0.7" strokeLinecap="round" />
-      <line x1="6"  y1="36" x2="22" y2="35" stroke="#d0a8ff" strokeWidth="0.8" opacity="0.6" strokeLinecap="round" />
-      <line x1="7"  y1="29" x2="22" y2="31" stroke="#d0a8ff" strokeWidth="0.8" opacity="0.5" strokeLinecap="round" />
-
-      {/* ── Whiskers right ── */}
-      <line x1="59" y1="32" x2="42" y2="33" stroke="#d0a8ff" strokeWidth="0.8" opacity="0.7" strokeLinecap="round" />
-      <line x1="58" y1="36" x2="42" y2="35" stroke="#d0a8ff" strokeWidth="0.8" opacity="0.6" strokeLinecap="round" />
-      <line x1="57" y1="29" x2="42" y2="31" stroke="#d0a8ff" strokeWidth="0.8" opacity="0.5" strokeLinecap="round" />
-
-      {/* ── Crescent moon on forehead ── */}
-      <g filter="url(#glow)" transform="translate(28, 12)">
-        {/* Outer circle of crescent */}
-        <circle cx="4" cy="4" r="4.5" fill="url(#moonGrad)" />
-        {/* Inner cutout to form crescent */}
-        <circle cx="6.2" cy="3" r="3.5" fill="url(#bodyGrad)" />
-        {/* Inner highlight */}
-        <circle cx="2.5" cy="5.5" r="0.9" fill="#fff8d0" opacity="0.8" />
-      </g>
-
-      {/* ── Front paws ── */}
-      <ellipse cx="23" cy="67" rx="6" ry="4" fill="url(#bodyGrad)" />
-      <ellipse cx="41" cy="67" rx="6" ry="4" fill="url(#bodyGrad)" />
-      {/* Paw toe lines */}
-      <path d="M 20 67 Q 23 69 26 67" stroke="#9060c8" strokeWidth="0.8" fill="none" opacity="0.6" />
-      <path d="M 38 67 Q 41 69 44 67" stroke="#9060c8" strokeWidth="0.8" fill="none" opacity="0.6" />
-
-      {/* ── Tiny star particles (static decoration) ── */}
-      <circle cx="6"  cy="14" r="1"   fill="#e0c0ff" opacity="0.6" />
-      <circle cx="58" cy="10" r="0.8" fill="#e0c0ff" opacity="0.5" />
-      <circle cx="55" cy="52" r="1"   fill="#c0a0ff" opacity="0.4" />
-    </svg>
+    <img
+      src={lumi}
+      alt="Lumi the cosmic cat"
+      className={`lumi-image lumi-image--${animState}`}
+      draggable={false}
+    />
   );
 }
 
 /* ─────────────────────────────────────────────
-   Sparkle burst on tap
+   Particle — generic, colour-configurable
 ───────────────────────────────────────────── */
-function SparkleParticle({ id, onDone }) {
-  const angle  = Math.random() * 2 * Math.PI;
-  const dist   = 20 + Math.random() * 22;
-  const sx     = `${Math.cos(angle) * dist}px`;
-  const sy     = `${Math.sin(angle) * dist}px`;
+function Particle({ id, type, onDone }) {
+  const angle = Math.random() * 2 * Math.PI;
+  const dist  = 20 + Math.random() * 28;
+  const sx    = `${Math.cos(angle) * dist}px`;
+  const sy    = `${Math.sin(angle) * dist}px`;
 
   useEffect(() => {
     const t = setTimeout(onDone, 750);
     return () => clearTimeout(t);
   }, [onDone]);
+
+  // type: "sparkle" | "heart" | "star"
+  const emoji = type === "heart" ? "💜" : type === "star" ? "⭐" : null;
+
+  if (emoji) {
+    return (
+      <span
+        className="lumi-sparkle lumi-sparkle--emoji"
+        style={{ "--sx": sx, "--sy": sy, left: "50%", top: "50%", transform: "translate(-50%,-50%)" }}
+      >
+        {emoji}
+      </span>
+    );
+  }
 
   return (
     <span
@@ -203,6 +70,19 @@ function SparkleParticle({ id, onDone }) {
       style={{ "--sx": sx, "--sy": sy, left: "50%", top: "50%", transform: "translate(-50%,-50%)" }}
     />
   );
+}
+
+/* ─────────────────────────────────────────────
+   Helper — burst N particles
+───────────────────────────────────────────── */
+function makeBurst(n) {
+  return Array.from({ length: n }, (_, i) => ({ id: Date.now() + i, type: "sparkle" }));
+}
+function makeHearts(n) {
+  return Array.from({ length: n }, (_, i) => ({ id: Date.now() + i, type: "heart" }));
+}
+function makeStars(n) {
+  return Array.from({ length: n }, (_, i) => ({ id: Date.now() + i, type: "star" }));
 }
 
 /* ─────────────────────────────────────────────
@@ -236,30 +116,16 @@ export default function PetCompanion() {
 
   /* ── UI state ── */
   const [menuOpen,    setMenuOpen]    = useState(false);
-  const [blinking,    setBlinking]    = useState(false);
   const [tapped,      setTapped]      = useState(false);
-  const [expression,  setExpression]  = useState("neutral");
   const [tooltip,     setTooltip]     = useState(null);
-  const [sparkles,    setSparkles]    = useState([]);
+  const [particles,   setParticles]   = useState([]);
+
+  /* ── Animation state for the image ── */
+  // "idle" | "tap" | "bounce"
+  const [animState,   setAnimState]   = useState("idle");
 
   /* ── Long-press timer ── */
   const longPressTimer = useRef(null);
-
-  /* ─────────────────────────────────────────
-     Blink loop (random interval 3-7 s)
-  ───────────────────────────────────────── */
-  useEffect(() => {
-    const scheduleBlink = () => {
-      const delay = 3000 + Math.random() * 4000;
-      return setTimeout(() => {
-        setBlinking(true);
-        setTimeout(() => setBlinking(false), 140);
-        blinkRef.current = scheduleBlink();
-      }, delay);
-    };
-    const blinkRef = { current: scheduleBlink() };
-    return () => clearTimeout(blinkRef.current);
-  }, []);
 
   /* ─────────────────────────────────────────
      Clamp helper — keep Lumi fully on screen
@@ -280,7 +146,6 @@ export default function PetCompanion() {
      Pointer drag handlers
   ───────────────────────────────────────── */
   const onPointerDown = useCallback((e) => {
-    // Only left-click / touch
     if (e.button > 0) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     isDragging.current = true;
@@ -293,7 +158,6 @@ export default function PetCompanion() {
       ey: pos.y,
     };
 
-    // Long press → menu
     longPressTimer.current = setTimeout(() => {
       if (!hasMoved.current) {
         setMenuOpen(true);
@@ -328,10 +192,8 @@ export default function PetCompanion() {
     isDragging.current = false;
 
     if (!hasMoved.current) {
-      // Tap
       handleTap();
     } else {
-      // Drag ended → snap save
       const dx = e.clientX - dragStart.current.px;
       const dy = e.clientY - dragStart.current.py;
       const next = clampPos(
@@ -344,7 +206,7 @@ export default function PetCompanion() {
   }, [clampPos, savePos]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ─────────────────────────────────────────
-     Tap handler — sparkles + expression cycle
+     Tap handler — sparkles + jump
   ───────────────────────────────────────── */
   const tapCount = useRef(0);
 
@@ -360,13 +222,12 @@ export default function PetCompanion() {
     setTapped(true);
     setTimeout(() => setTapped(false), 300);
 
-    // Sparkles
-    const ids = Array.from({ length: 5 }, (_, i) => Date.now() + i);
-    setSparkles(ids);
+    // Jump animation
+    setAnimState("tap");
+    setTimeout(() => setAnimState("idle"), 500);
 
-    // Expression
-    setExpression("happy");
-    setTimeout(() => setExpression("neutral"), 1200);
+    // Sparkles
+    setParticles(makeBurst(6));
 
     // Tooltip
     const msg = MESSAGES[tapCount.current % MESSAGES.length];
@@ -374,6 +235,44 @@ export default function PetCompanion() {
     setTooltip(msg);
     setTimeout(() => setTooltip(null), 2200);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ─────────────────────────────────────────
+     Public event API — capsule / message hooks
+     Dispatch custom DOM events from anywhere in the app:
+       window.dispatchEvent(new CustomEvent("lumi:capsule-created"))
+       window.dispatchEvent(new CustomEvent("lumi:capsule-unlocked"))
+       window.dispatchEvent(new CustomEvent("lumi:message-received"))
+  ───────────────────────────────────────── */
+  useEffect(() => {
+    const onCapsuleCreated = () => {
+      setParticles(makeHearts(7));
+      setTooltip("Capsule sealed! 💜");
+      setTimeout(() => setTooltip(null), 2200);
+    };
+    const onCapsuleUnlocked = () => {
+      setParticles(makeStars(7));
+      setAnimState("bounce");
+      setTimeout(() => setAnimState("idle"), 800);
+      setTooltip("Capsule unlocked! ⭐");
+      setTimeout(() => setTooltip(null), 2200);
+    };
+    const onMessageReceived = () => {
+      setAnimState("bounce");
+      setTimeout(() => setAnimState("idle"), 800);
+      setParticles(makeBurst(5));
+      setTooltip("New message! 📬");
+      setTimeout(() => setTooltip(null), 2200);
+    };
+
+    window.addEventListener("lumi:capsule-created",  onCapsuleCreated);
+    window.addEventListener("lumi:capsule-unlocked", onCapsuleUnlocked);
+    window.addEventListener("lumi:message-received", onMessageReceived);
+    return () => {
+      window.removeEventListener("lumi:capsule-created",  onCapsuleCreated);
+      window.removeEventListener("lumi:capsule-unlocked", onCapsuleUnlocked);
+      window.removeEventListener("lumi:message-received", onMessageReceived);
+    };
+  }, []);
 
   /* ─────────────────────────────────────────
      Hide / show
@@ -485,15 +384,16 @@ export default function PetCompanion() {
           {/* Aura ring */}
           <div className="lumi-aura" />
 
-          {/* Cat SVG */}
-          <LumiSVG blinking={blinking} expression={expression} />
+          {/* Lumi PNG */}
+          <LumiImage animState={animState} />
 
-          {/* Sparkles */}
-          {sparkles.map((id) => (
-            <SparkleParticle
-              key={id}
-              id={id}
-              onDone={() => setSparkles((s) => s.filter((x) => x !== id))}
+          {/* Particles */}
+          {particles.map((p) => (
+            <Particle
+              key={p.id}
+              id={p.id}
+              type={p.type}
+              onDone={() => setParticles((s) => s.filter((x) => x.id !== p.id))}
             />
           ))}
         </motion.div>
