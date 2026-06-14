@@ -11,7 +11,7 @@ import {
   getFollowingIds,
 } from "../services/supabase";
 import { useAuth } from "../contexts/AuthContext";
-import homeBg from "../assets/backgrounds/message-bg.jpg";
+import homeBg from "../assets/backgrounds/message.jpg";
 import "./Profile.css";
 
 /* ─── Level System ─── */
