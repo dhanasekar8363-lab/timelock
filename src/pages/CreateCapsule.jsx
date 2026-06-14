@@ -277,6 +277,7 @@ function CreateCapsule() {
   const [userSearchLoading, setUserSearchLoading] = useState(false);
   const [selectedUserId,    setSelectedUserId]    = useState(null);
   const [selectedUserName,  setSelectedUserName]  = useState("");
+  const [selectedUserEmail, setSelectedUserEmail] = useState("");
   const [selectedUserAvatar,setSelectedUserAvatar]= useState(null);
   const [showUserDropdown,  setShowUserDropdown]  = useState(false);
 
@@ -298,6 +299,15 @@ function CreateCapsule() {
       setShareWithUserId(shareWith);
       setSelectedUserId(shareWith);
       setSelectedUserName(shareName || "User");
+      // Fetch the email for this user so receiver_email can be populated
+      supabase
+        .from("profiles")
+        .select("email")
+        .eq("id", shareWith)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data?.email) setSelectedUserEmail(data.email);
+        });
     }
   }, [searchParams]);
 
@@ -383,6 +393,7 @@ function CreateCapsule() {
     setShareWithUserId(null);
     setSelectedUserId(null);
     setSelectedUserName("");
+    setSelectedUserEmail("");
     setSelectedUserAvatar(null);
     setUserSearchQuery("");
     setUserSearchResults([]);
@@ -408,7 +419,7 @@ function CreateCapsule() {
       try {
         const { data } = await supabase
           .from("profiles")
-          .select("id, display_name, avatar_url")
+          .select("id, display_name, avatar_url, email")
           .ilike("display_name", `%${query}%`)
           .limit(8);
         setUserSearchResults(data || []);
@@ -423,6 +434,7 @@ function CreateCapsule() {
   const selectUser = (user) => {
     setSelectedUserId(user.id);
     setSelectedUserName(user.display_name);
+    setSelectedUserEmail(user.email || "");
     setSelectedUserAvatar(user.avatar_url);
     setShareWithUserId(user.id);
     setUserSearchQuery("");
@@ -593,8 +605,14 @@ function CreateCapsule() {
           ? receiverName.trim()                              // free-text name
           : null;                                            // email-only recipient
 
-    // FIX: receiver_email holds a real email address only
-    const recipientEmail = manualReceiverIsEmail ? receiverName.trim() : null;
+    // FIX: receiver_email holds a real email address only.
+    // For a registered TimeLock user, use their stored email (never null).
+    // For manual entry, use it only when it looks like an email address.
+    const recipientEmail = selectedUserId
+      ? selectedUserEmail || null          // registered user → their profile email
+      : manualReceiverIsEmail
+        ? receiverName.trim()              // manual email entry
+        : null;                            // manual name-only entry
     // ──────────────────────────────────────────────────────────────────────────
 
     const payload = {
