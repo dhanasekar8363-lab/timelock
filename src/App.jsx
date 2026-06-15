@@ -56,6 +56,7 @@ const routes = [
       { path: "/profile/edit",      element: <EditProfile /> },
       { path: "/capsule/id/:id",    element: <CapsuleDetail /> },
       { path: "/capsule/:slug",     element: <CapsuleViewer /> },
+      { path: "/pet",                element: <PetPage /> },
     ],
   },
 ];
@@ -78,7 +79,7 @@ export default function App() {
   return (
     <PetProvider>
       <RouterProvider router={router} />
-      <Route path="/pet" element={<PetPage />} />
+      
     </PetProvider>
   );
 }
