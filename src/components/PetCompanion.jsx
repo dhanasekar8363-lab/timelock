@@ -32,7 +32,6 @@ const SPEECH_SHOW_MS   = 5000;  // bubble visible for 5 s
    Sound effects
 ───────────────────────────────────────────── */
 const SOUND_TAP   = "/sounds/lumi-tap.mp3";
-tapSound.volume = 0.25;
 const SOUND_PURR  = "/sounds/lumi-purr.mp3";
 const SOUND_SPARK = "/sounds/lumi-spark.mp3";
 const SPARK_SOUND_CHANCE = 0.3; // 30% chance to also play the spark sound on tap
@@ -267,11 +266,36 @@ export default function PetCompanion() {
   const purrSoundRef  = useRef(null);
   const sparkSoundRef = useRef(null);
 
-  // Create Audio instances once on mount
+  // Create Audio instances once on mount, and clean them up on unmount
+  // so they stop playing and release their resources.
   useEffect(() => {
     tapSoundRef.current   = new Audio(SOUND_TAP);
     purrSoundRef.current  = new Audio(SOUND_PURR);
     sparkSoundRef.current = new Audio(SOUND_SPARK);
+
+    tapSoundRef.current.volume   = 0.25;
+    purrSoundRef.current.volume  = 0.4;
+    sparkSoundRef.current.volume = 0.35;
+
+    // Helps mobile browsers have the audio ready to go as soon as it's unlocked
+    tapSoundRef.current.preload   = "auto";
+    purrSoundRef.current.preload  = "auto";
+    sparkSoundRef.current.preload = "auto";
+
+    return () => {
+      [tapSoundRef, purrSoundRef, sparkSoundRef].forEach((ref) => {
+        const audio = ref.current;
+        if (!audio) return;
+        try {
+          audio.pause();
+          audio.src = "";
+          audio.load();
+        } catch (_) {
+          // ignore — nothing more we can do during teardown
+        }
+        ref.current = null;
+      });
+    };
   }, []);
 
   /* ─────────────────────────────────────────
@@ -297,12 +321,51 @@ export default function PetCompanion() {
     }
   }, []);
 
+  /* ─────────────────────────────────────────
+     Prime/"unlock" an Audio element for mobile browsers.
+     iOS Safari (and other mobile browsers) only allow audio
+     playback that's triggered synchronously inside a user
+     gesture. The long-press purr sound fires from a setTimeout,
+     which happens *after* the gesture and gets blocked.
+     Calling play()+pause() here, synchronously inside the
+     pointerdown handler, unlocks the element for the rest of
+     the gesture/session so the later delayed play() succeeds.
+  ───────────────────────────────────────── */
+  const primeAudio = useCallback((audio) => {
+    if (!audio) return;
+    try {
+      const wasMuted = audio.muted;
+      audio.muted = true;
+      const playPromise = audio.play();
+      const settle = () => {
+        try {
+          audio.pause();
+          audio.currentTime = 0;
+        } catch (_) {}
+        audio.muted = wasMuted;
+      };
+      if (playPromise && typeof playPromise.then === "function") {
+        playPromise.then(settle).catch(settle);
+      } else {
+        settle();
+      }
+    } catch (_) {
+      // ignore — best effort unlock
+    }
+  }, []);
 
   /* ── Sleep timer ── */
   const sleepTimer      = useRef(null);
   const zzzInterval     = useRef(null);
   const speechTimer     = useRef(null);
   const tooltipTimer    = useRef(null);
+
+  // Tracks current sleeping state without making resetSleepTimer's
+  // identity change every time `sleeping` toggles.
+  const sleepingRef = useRef(sleeping);
+  useEffect(() => {
+    sleepingRef.current = sleeping;
+  }, [sleeping]);
 
   /* ─────────────────────────────────────────
      Clamp helper — keep Lumi fully on screen
@@ -338,7 +401,7 @@ export default function PetCompanion() {
   }, []);
 
   const resetSleepTimer = useCallback(() => {
-    if (sleeping) {
+    if (sleepingRef.current) {
       setSleeping(false);
       stopZzzLoop();
     }
@@ -347,7 +410,7 @@ export default function PetCompanion() {
       setSleeping(true);
       startZzzLoop();
     }, SLEEP_TIMEOUT_MS);
-  }, [sleeping, startZzzLoop, stopZzzLoop]);
+  }, [startZzzLoop, stopZzzLoop]);
 
   // Kick off sleep timer on mount
   useEffect(() => {
@@ -357,8 +420,7 @@ export default function PetCompanion() {
       clearInterval(zzzInterval.current);
       clearTimeout(longPressSoundTimer.current);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [resetSleepTimer]);
 
   /* ─────────────────────────────────────────
      Random speech bubble
@@ -383,82 +445,7 @@ export default function PetCompanion() {
       clearTimeout(speechTimer.current);
       clearTimeout(tooltipTimer.current);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /* ─────────────────────────────────────────
-     Pointer drag handlers
-  ───────────────────────────────────────── */
-  const onPointerDown = useCallback((e) => {
-    if (e.button > 0) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    isDragging.current = true;
-    hasMoved.current   = false;
-
-    dragStart.current = {
-      px: e.clientX,
-      py: e.clientY,
-      ex: pos.x,
-      ey: pos.y,
-    };
-
-    longPressTimer.current = setTimeout(() => {
-      if (!hasMoved.current) {
-        setMenuOpen(true);
-        isDragging.current = false;
-      }
-    }, LONG_PRESS_MS);
-
-    // Separate timer for the long-press purr sound (fires at 800ms)
-    longPressSoundTimer.current = setTimeout(() => {
-      if (!hasMoved.current) {
-        playSound(purrSoundRef);
-      }
-    }, LONG_PRESS_SOUND_MS);
-
-    resetSleepTimer();
-  }, [pos, resetSleepTimer, playSound]);
-
-  const onPointerMove = useCallback((e) => {
-    if (!isDragging.current) return;
-
-    const dx = e.clientX - dragStart.current.px;
-    const dy = e.clientY - dragStart.current.py;
-
-    if (!hasMoved.current && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
-      hasMoved.current = true;
-      clearTimeout(longPressTimer.current);
-      clearTimeout(longPressSoundTimer.current);
-      setMenuOpen(false);
-    }
-
-    if (hasMoved.current) {
-      const next = clampPos(
-        dragStart.current.ex + dx,
-        dragStart.current.ey + dy,
-      );
-      setPos(next);
-    }
-  }, [clampPos]);
-
-  const onPointerUp = useCallback((e) => {
-    clearTimeout(longPressTimer.current);
-    clearTimeout(longPressSoundTimer.current);
-    isDragging.current = false;
-
-    if (!hasMoved.current) {
-      handleTap();
-    } else {
-      const dx = e.clientX - dragStart.current.px;
-      const dy = e.clientY - dragStart.current.py;
-      const next = clampPos(
-        dragStart.current.ex + dx,
-        dragStart.current.ey + dy,
-      );
-      setPos(next);
-      savePos(next);
-    }
-  }, [clampPos, savePos]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [scheduleNextSpeech]);
 
   /* ─────────────────────────────────────────
      Tap handler — hearts + jump
@@ -499,7 +486,85 @@ export default function PetCompanion() {
     clearTimeout(tooltipTimer.current);
     setTooltip(msg);
     tooltipTimer.current = setTimeout(() => setTooltip(null), 2200);
-  }, [resetSleepTimer, playSound]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [resetSleepTimer, playSound]);
+
+  /* ─────────────────────────────────────────
+     Pointer drag handlers
+  ───────────────────────────────────────── */
+  const onPointerDown = useCallback((e) => {
+    if (e.button > 0) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    isDragging.current = true;
+    hasMoved.current   = false;
+
+    dragStart.current = {
+      px: e.clientX,
+      py: e.clientY,
+      ex: pos.x,
+      ey: pos.y,
+    };
+
+    longPressTimer.current = setTimeout(() => {
+      if (!hasMoved.current) {
+        setMenuOpen(true);
+        isDragging.current = false;
+      }
+    }, LONG_PRESS_MS);
+
+    // Unlock the purr sound for mobile browsers *synchronously*
+    // within this gesture, so the delayed play() below isn't blocked.
+    primeAudio(purrSoundRef.current);
+
+    // Separate timer for the long-press purr sound (fires at 800ms)
+    longPressSoundTimer.current = setTimeout(() => {
+      if (!hasMoved.current) {
+        playSound(purrSoundRef);
+      }
+    }, LONG_PRESS_SOUND_MS);
+
+    resetSleepTimer();
+  }, [pos, resetSleepTimer, playSound, primeAudio]);
+
+  const onPointerMove = useCallback((e) => {
+    if (!isDragging.current) return;
+
+    const dx = e.clientX - dragStart.current.px;
+    const dy = e.clientY - dragStart.current.py;
+
+    if (!hasMoved.current && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+      hasMoved.current = true;
+      clearTimeout(longPressTimer.current);
+      clearTimeout(longPressSoundTimer.current);
+      setMenuOpen(false);
+    }
+
+    if (hasMoved.current) {
+      const next = clampPos(
+        dragStart.current.ex + dx,
+        dragStart.current.ey + dy,
+      );
+      setPos(next);
+    }
+  }, [clampPos]);
+
+  const onPointerUp = useCallback((e) => {
+    clearTimeout(longPressTimer.current);
+    clearTimeout(longPressSoundTimer.current);
+    isDragging.current = false;
+
+    if (!hasMoved.current) {
+      handleTap();
+    } else {
+      const dx = e.clientX - dragStart.current.px;
+      const dy = e.clientY - dragStart.current.py;
+      const next = clampPos(
+        dragStart.current.ex + dx,
+        dragStart.current.ey + dy,
+      );
+      setPos(next);
+      savePos(next);
+    }
+  }, [clampPos, savePos, handleTap]);
 
   /* ─────────────────────────────────────────
      Public event API — capsule / message hooks
@@ -587,7 +652,7 @@ export default function PetCompanion() {
     // Clear the event from context after consuming it
     const clearId = setTimeout(clearPetEvent, duration ?? 3000);
     return () => clearTimeout(clearId);
-  }, [activeEvent]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeEvent, resetSleepTimer, clearPetEvent]);
 
   /* ─────────────────────────────────────────
      Hide / show
@@ -726,7 +791,7 @@ export default function PetCompanion() {
             exit={{ opacity: 0, scale: 0.5 }}
             transition={{ duration: 0.4 }}
           >
-            
+            😴
           </motion.div>
         )}
       </AnimatePresence>
