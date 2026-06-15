@@ -986,6 +986,39 @@
   color: rgba(196, 181, 253, 0.6);
 }
 
+/* ── Cooldown state ─────────────────────────────────────── */
+.pet-food-btn--cooldown {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pet-food-btn--cooldown:hover,
+.pet-food-btn--cooldown:focus-visible {
+  transform: none;
+}
+
+.pet-food-cooldown-badge {
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.pet-food-cooldown-badge--ready {
+  color: #6ee7b7;
+  background: rgba(52, 211, 153, 0.12);
+  border: 1px solid rgba(52, 211, 153, 0.25);
+}
+
+.pet-food-cooldown-badge--active {
+  color: rgba(196, 181, 253, 0.7);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(196, 181, 253, 0.15);
+}
+
 /* ── Cancel button ─────────────────────────────────────── */
 .pet-feed-cancel-btn {
   margin-top: 10px;
@@ -1275,4 +1308,71 @@
   .pet-gift-sparkle         { animation: none; opacity: 0; }
   .pet-gift-reveal-emoji    { animation: none; }
   .pet-gift-dots span       { animation: none; opacity: 0.5; }
+}
+
+/* ── Floating reward labels (+XP / +❤️) ─────────────────── */
+.pet-reward-float {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  border-radius: 40px;
+  padding: 4px 11px;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.35);
+  z-index: 200;
+}
+
+.pet-reward-float--xp {
+  background: linear-gradient(135deg, #7c5cff, #a88bff);
+  color: #fff;
+}
+
+.pet-reward-float--heart {
+  background: linear-gradient(135deg, #ff5ca8, #ff8fd8);
+  color: #fff;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Eating Success Effects
+   Purple glow, smooth modal exit, particle fade
+═══════════════════════════════════════════════════════════ */
+
+/* ── Purple success glow that pulses around Lumi ──────────── */
+.pet-success-glow {
+  background: radial-gradient(
+    circle,
+    rgba(168, 85, 247, 0.60) 0%,
+    rgba(124, 58, 237, 0.35) 40%,
+    rgba(109, 40, 217, 0)    75%
+  );
+  box-shadow:
+    0 0 28px 8px  rgba(168, 85, 247, 0.45),
+    0 0 60px 18px rgba(124, 58, 237, 0.25);
+  border-radius: 50%;
+}
+
+/* ── Feed overlay smooth fade-out ────────────────────────── */
+.pet-feed-overlay--closing {
+  animation: pet-overlay-out 0.32s ease forwards;
+}
+
+@keyframes pet-overlay-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* ── Feed sheet smooth slide-down ────────────────────────── */
+.pet-feed-sheet--closing {
+  animation: pet-sheet-down 0.3s cubic-bezier(0.4, 0, 0.8, 0.6) forwards;
+}
+
+@keyframes pet-sheet-down {
+  from { transform: translateY(0);    opacity: 1; }
+  to   { transform: translateY(100%); opacity: 0; }
+}
+
+/* ── Reduced motion: skip success effects ────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .pet-success-glow            { animation: none; opacity: 0; }
+  .pet-feed-overlay--closing   { animation: none; opacity: 0; }
+  .pet-feed-sheet--closing     { animation: none; opacity: 0; }
 }

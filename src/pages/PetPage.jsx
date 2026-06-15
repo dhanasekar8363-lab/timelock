@@ -3,10 +3,14 @@
  * Full pet dashboard for TimeLock's cosmic cat companion.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import lumi from "../assets/lumi.png";
-import { usePet, MOODS, getLevel, getCurrentLevelXP, getNextLevelXP } from "../contexts/PetContext";
+import {
+  usePet, MOODS, getLevel, getCurrentLevelXP, getNextLevelXP,
+  FOOD_COOLDOWNS, GIFT_COOLDOWNS,
+} from "../contexts/PetContext";
 import "./PetPage.css";
 
 /* ─────────────────────────────────────────────
@@ -137,12 +141,25 @@ const MOOD_DESC = {
   celebration: "Lumi is over the moon right now!",
 };
 
-/* XP milestones around current level */
+/* XP milestones around current level — one behind, current, two ahead */
 function getMilestones(level) {
-  const prev2 = Math.max(1, level - 2);
   const prev1 = Math.max(1, level - 1);
   const next1 = level + 1;
-  return [prev2, prev1, level, next1];
+  const next2 = level + 2;
+  return [prev1, level, next1, next2];
+}
+
+/* Format remaining seconds as "Xm Ys remaining" or "Xh Ym remaining" */
+function formatCooldown(totalSeconds) {
+  if (totalSeconds <= 0) return "Ready";
+  const hours   = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m remaining`;
+  }
+  return `${minutes}m ${seconds}s remaining`;
 }
 
 /* Circular progress SVG */
@@ -168,34 +185,43 @@ function CircleProgress({ pct }) {
 /* ─────────────────────────────────────────────
    Feed Menu — bottom-sheet food picker
 ───────────────────────────────────────────── */
-function FeedMenu({ onSelect, onClose }) {
+function FeedMenu({ onSelect, onClose, getRemainingCooldown, isEating, isClosing }) {
   return (
     <div
-      className="pet-feed-overlay"
+      className={`pet-feed-overlay ${isClosing ? "pet-feed-overlay--closing" : ""}`}
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label="Choose food for Lumi"
     >
-      <div className="pet-feed-sheet" onClick={(e) => e.stopPropagation()}>
+      <div className={`pet-feed-sheet ${isClosing ? "pet-feed-sheet--closing" : ""}`} onClick={(e) => e.stopPropagation()}>
         <div className="pet-feed-sheet-handle" aria-hidden="true" />
         <p className="pet-feed-sheet-eyebrow">Time to eat! 🐱</p>
         <h2 className="pet-feed-title">What should Lumi eat?</h2>
 
         <div className="pet-food-grid">
-          {FOOD_TYPES.map((food) => (
-            <button
-              key={food.id}
-              className={`pet-food-btn pet-food-btn--${food.rarity}`}
-              onClick={() => onSelect(food)}
-            >
-              <span className="pet-food-emoji" aria-hidden="true">{food.emoji}</span>
-              <span className="pet-food-name">{food.name}</span>
-              <span className="pet-food-desc">{food.desc}</span>
-              <span className="pet-food-xp-badge">+{food.xp} XP</span>
-              <span className="pet-food-happiness">+{food.happiness} 💜</span>
-            </button>
-          ))}
+          {FOOD_TYPES.map((food) => {
+            const remaining = getRemainingCooldown(food.id);
+            const onCooldown = remaining > 0;
+            const disabled = onCooldown || isEating;
+            return (
+              <button
+                key={food.id}
+                className={`pet-food-btn pet-food-btn--${food.rarity} ${onCooldown ? "pet-food-btn--cooldown" : ""}`}
+                onClick={(e) => !disabled && onSelect(food, e)}
+                disabled={disabled}
+              >
+                <span className="pet-food-emoji" aria-hidden="true">{food.emoji}</span>
+                <span className="pet-food-name">{food.name}</span>
+                <span className="pet-food-desc">{food.desc}</span>
+                <span className="pet-food-xp-badge">+{food.xp} XP</span>
+                <span className="pet-food-happiness">+{food.happiness} 💜</span>
+                <span className={`pet-food-cooldown-badge ${onCooldown ? "pet-food-cooldown-badge--active" : "pet-food-cooldown-badge--ready"}`}>
+                  {formatCooldown(remaining)}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         <button className="pet-feed-cancel-btn" onClick={onClose}>
@@ -209,7 +235,7 @@ function FeedMenu({ onSelect, onClose }) {
 /* ─────────────────────────────────────────────
    Gift Menu — bottom-sheet gift picker
 ───────────────────────────────────────────── */
-function GiftMenu({ onSelect, onClose }) {
+function GiftMenu({ onSelect, onClose, getRemainingCooldown }) {
   return (
     <div
       className="pet-feed-overlay"
@@ -224,19 +250,27 @@ function GiftMenu({ onSelect, onClose }) {
         <h2 className="pet-feed-title">Choose a gift for Lumi</h2>
 
         <div className="pet-food-grid">
-          {GIFT_TYPES.map((gift) => (
-            <button
-              key={gift.id}
-              className={`pet-food-btn pet-food-btn--${gift.rarity}`}
-              onClick={() => onSelect(gift)}
-            >
-              <span className="pet-food-emoji" aria-hidden="true">{gift.emoji}</span>
-              <span className="pet-food-name">{gift.name}</span>
-              <span className="pet-food-desc">{gift.desc}</span>
-              <span className="pet-food-xp-badge">+{gift.xp} XP</span>
-              <span className="pet-food-happiness">+{gift.happiness} 💜</span>
-            </button>
-          ))}
+          {GIFT_TYPES.map((gift) => {
+            const remaining = getRemainingCooldown(gift.id);
+            const onCooldown = remaining > 0;
+            return (
+              <button
+                key={gift.id}
+                className={`pet-food-btn pet-food-btn--${gift.rarity} ${onCooldown ? "pet-food-btn--cooldown" : ""}`}
+                onClick={() => !onCooldown && onSelect(gift)}
+                disabled={onCooldown}
+              >
+                <span className="pet-food-emoji" aria-hidden="true">{gift.emoji}</span>
+                <span className="pet-food-name">{gift.name}</span>
+                <span className="pet-food-desc">{gift.desc}</span>
+                <span className="pet-food-xp-badge">+{gift.xp} XP</span>
+                <span className="pet-food-happiness">+{gift.happiness} 💜</span>
+                <span className={`pet-food-cooldown-badge ${onCooldown ? "pet-food-cooldown-badge--active" : "pet-food-cooldown-badge--ready"}`}>
+                  {formatCooldown(remaining)}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         <button className="pet-feed-cancel-btn" onClick={onClose}>
@@ -320,13 +354,243 @@ function GiftOpeningModal({ gift, onCollect }) {
 }
 
 /* ─────────────────────────────────────────────
+   Food reaction config — maps each food id to
+   how Lumi reacts once the flying food lands
+───────────────────────────────────────────── */
+const FOOD_REACTIONS = {
+  snack: {
+    bounces: 1,
+    glow: false,
+    hearts: 4,
+    sparkles: 0,
+  },
+  fish: {
+    bounces: 2,
+    glow: false,
+    hearts: 8,
+    sparkles: 0,
+  },
+  premiumMeal: {
+    bounces: 1,
+    glow: true,
+    hearts: 8,
+    sparkles: 6,
+  },
+};
+
+/* ─────────────────────────────────────────────
+   Reusable: Heart particle
+   Floats upward and fades out from a center point
+───────────────────────────────────────────── */
+function HeartParticle({ index, total }) {
+  // Spread hearts across an arc above Lumi
+  const angle  = -90 + (index - (total - 1) / 2) * 22; // degrees, fan out around "up"
+  const rad    = (angle * Math.PI) / 180;
+  const dist   = 60 + (index % 3) * 20;
+  const dx     = Math.cos(rad) * dist;
+  const dy     = Math.sin(rad) * dist;
+  const delay  = index * 0.06;
+  const size   = 14 + (index % 3) * 6;
+
+  return (
+    <motion.span
+      className="pet-reaction-heart"
+      style={{
+        position: "absolute",
+        left: "50%",
+        top: "50%",
+        fontSize: `${size}px`,
+        pointerEvents: "none",
+        willChange: "transform, opacity",
+      }}
+      initial={{ x: 0, y: 0, opacity: 0, scale: 0.4 }}
+      animate={{
+        x: dx,
+        y: dy - 30,
+        opacity: [0, 1, 1, 0],
+        scale: [0.4, 1, 1, 0.7],
+      }}
+      transition={{
+        duration: 1.1,
+        delay,
+        ease: "easeOut",
+        times: [0, 0.2, 0.7, 1],
+      }}
+    >
+      💜
+    </motion.span>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   Reusable: Sparkle particle
+   Pops and rotates outward, used for premium meals
+───────────────────────────────────────────── */
+function SparkleParticle({ index, total }) {
+  const angle = (360 / total) * index;
+  const rad   = (angle * Math.PI) / 180;
+  const dist  = 50 + (index % 2) * 25;
+  const dx    = Math.cos(rad) * dist;
+  const dy    = Math.sin(rad) * dist;
+  const delay = 0.15 + index * 0.05;
+  const size  = 12 + (index % 3) * 5;
+
+  return (
+    <motion.span
+      className="pet-reaction-sparkle"
+      style={{
+        position: "absolute",
+        left: "50%",
+        top: "50%",
+        fontSize: `${size}px`,
+        pointerEvents: "none",
+        willChange: "transform, opacity",
+      }}
+      initial={{ x: 0, y: 0, opacity: 0, scale: 0, rotate: 0 }}
+      animate={{
+        x: dx,
+        y: dy,
+        opacity: [0, 1, 1, 0],
+        scale: [0, 1.2, 1, 0.5],
+        rotate: 180,
+      }}
+      transition={{
+        duration: 0.9,
+        delay,
+        ease: "easeOut",
+        times: [0, 0.3, 0.7, 1],
+      }}
+    >
+      ✨
+    </motion.span>
+  );
+}
+
+/* Build a y-position keyframe sequence for N bounces: [0,-16,0, 0,-16,0, ...] */
+function buildBounceFrames(bounces) {
+  const count  = Math.max(1, bounces || 1);
+  const frames = [];
+  for (let i = 0; i < count; i++) frames.push(0, -16, 0);
+  return frames;
+}
+
+/* ─────────────────────────────────────────────
+   FloatingRewardLabels — shows "+N XP" and "+N ❤️"
+   floating upward near Lumi after the reaction
+   animation finishes. Auto-removed by parent.
+───────────────────────────────────────────── */
+function FloatingRewardLabels({ xp, happiness }) {
+  return (
+    <>
+      {/* +XP label — floats up-right */}
+      <motion.span
+        className="pet-reward-float pet-reward-float--xp"
+        style={{
+          position: "absolute",
+          left: "60%",
+          top: "20%",
+          pointerEvents: "none",
+          whiteSpace: "nowrap",
+        }}
+        initial={{ opacity: 0, y: 0, scale: 0.6 }}
+        animate={{ opacity: [0, 1, 1, 0], y: -56, scale: [0.6, 1.1, 1, 0.9] }}
+        transition={{ duration: 1.4, ease: "easeOut", times: [0, 0.15, 0.7, 1] }}
+        exit={{ opacity: 0 }}
+      >
+        +{xp} XP
+      </motion.span>
+
+      {/* +❤️ label — floats up-left */}
+      <motion.span
+        className="pet-reward-float pet-reward-float--heart"
+        style={{
+          position: "absolute",
+          right: "60%",
+          top: "20%",
+          pointerEvents: "none",
+          whiteSpace: "nowrap",
+        }}
+        initial={{ opacity: 0, y: 0, scale: 0.6 }}
+        animate={{ opacity: [0, 1, 1, 0], y: -56, scale: [0.6, 1.1, 1, 0.9] }}
+        transition={{ duration: 1.4, ease: "easeOut", delay: 0.12, times: [0, 0.15, 0.7, 1] }}
+        exit={{ opacity: 0 }}
+      >
+        +{happiness} ❤️
+      </motion.span>
+    </>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   Lumi Reaction layer — glow pulse + floating
+   heart/sparkle particles, rendered as an
+   absolutely-positioned overlay inside Lumi's
+   image wrapper. Bounce is handled separately
+   on the image's motion.div.
+───────────────────────────────────────────── */
+function LumiReaction({ reaction, fadingOut }) {
+  if (!reaction) return null;
+
+  const { glow, hearts, sparkles } = reaction;
+
+  return (
+    <motion.div
+      style={{ position: "absolute", inset: 0, pointerEvents: "none" }}
+      animate={{ opacity: fadingOut ? 0 : 1 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+    >
+      {/* Glow pulse for premium meals */}
+      {glow && (
+        <motion.div
+          className="pet-reaction-glow"
+          style={{
+            position: "absolute",
+            inset: "-12px",
+            borderRadius: "50%",
+            pointerEvents: "none",
+            background: "radial-gradient(circle, rgba(255,223,128,0.55) 0%, rgba(255,223,128,0) 70%)",
+          }}
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: [0, 1, 0], scale: [0.8, 1.25, 1] }}
+          transition={{ duration: 1.4, ease: "easeOut" }}
+        />
+      )}
+
+      {/* Heart particles */}
+      {Array.from({ length: hearts || 0 }).map((_, i) => (
+        <HeartParticle key={`heart-${i}`} index={i} total={hearts} />
+      ))}
+
+      {/* Sparkle particles */}
+      {Array.from({ length: sparkles || 0 }).map((_, i) => (
+        <SparkleParticle key={`sparkle-${i}`} index={i} total={sparkles} />
+      ))}
+    </motion.div>
+  );
+}
+
+/* ─────────────────────────────────────────────
    Main component
 ───────────────────────────────────────────── */
 export default function PetPage() {
   const navigate  = useNavigate();
-  const { mood, petXP, addXP, triggerCelebration, setMoodForPage } = usePet();
+  const {
+    mood, petXP, addXP, triggerCelebration, setMoodForPage,
+    startCooldown, getRemainingCooldown, isCooldownActive,
+  } = usePet();
 
   const [data, setData]                 = useState(loadData);
+
+  /* Sound effects — created once, reused for all feed/gift actions */
+  const feedSoundRef = useRef(null);
+  const giftSoundRef = useRef(null);
+  if (feedSoundRef.current === null) {
+    feedSoundRef.current = new Audio("/sounds/lumi-feed.mp3");
+  }
+  if (giftSoundRef.current === null) {
+    giftSoundRef.current = new Audio("/sounds/lumi-gift.mp3");
+  }
+
   const [giftClaimed, setGiftClaimed]   = useState(false);
   const [feedFlash,   setFeedFlash]     = useState(false);
   const [giftFlash,   setGiftFlash]     = useState(false);
@@ -336,6 +600,35 @@ export default function PetPage() {
   const [showGiftMenu, setShowGiftMenu] = useState(false);  // gift picker open?
   const [giftOpening,  setGiftOpening]  = useState(null);   // gift being opened
   const [giftSuccess,  setGiftSuccess]  = useState(null);   // post-collect toast
+
+  /* ── Flying food animation state ── */
+  const [isEating,      setIsEating]      = useState(false); // blocks new food clicks during animation
+  const [eatingFood,    setEatingFood]    = useState(null);   // the food object being animated
+  const [foodAnimation, setFoodAnimation] = useState(null);   // { startX, startY, endX, endY }
+  const [foodFadingOut, setFoodFadingOut] = useState(false);  // triggers fade-out on the flying food
+
+  /* ── Food reaction state (plays after flying food lands) ── */
+  const [activeReaction,    setActiveReaction]    = useState(null); // reaction config object
+  const [reactionKey,        setReactionKey]       = useState(0);    // forces remount so animation replays
+  const [particlesFadingOut, setParticlesFadingOut] = useState(false); // fades particles before clearing
+
+  /* ── Floating reward labels (XP + happiness) shown after reaction ── */
+  const [floatingRewards, setFloatingRewards] = useState([]); // [{ id, xp, happiness }]
+
+  /* ── Success glow around Lumi after rewards applied ── */
+  const [successGlow, setSuccessGlow] = useState(false);
+
+  /* ── Feed menu closing state for smooth slide-down exit ── */
+  const [feedMenuClosing, setFeedMenuClosing] = useState(false);
+
+  const lumiImageRef = useRef(null); // ref to Lumi's avatar image, used as the animation target
+
+  /* Ticks once per second so cooldown countdowns stay live */
+  const [, setCooldownTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setCooldownTick((t) => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   /* Check if daily gift already claimed today */
   useEffect(() => {
@@ -382,8 +675,85 @@ export default function PetPage() {
      Opens the food picker; actual feeding happens
      in handleFoodSelect once the player picks a food.
   ─────────────────────────────────────────── */
-  const handleFoodSelect = useCallback((food) => {
-    setShowFeedMenu(false);
+  /* Smoothly close the Feed menu: slide it down, then unmount */
+  const closeFeedMenuSmooth = useCallback(() => {
+    setFeedMenuClosing(true);
+    setTimeout(() => {
+      setShowFeedMenu(false);
+      setFeedMenuClosing(false);
+    }, 320);
+  }, []);
+
+  const handleFoodSelect = useCallback((food, event) => {
+    if (isCooldownActive(food.id)) return;
+    if (isEating) return; // block additional food clicks while animation is running
+
+    // ── 1. Smoothly close the Feed Lumi modal ──────────────────────────
+    closeFeedMenuSmooth();
+
+    // Capture start position (the clicked food card) and end position (Lumi's avatar)
+    const startEl = event?.currentTarget;
+    const startRect = startEl ? startEl.getBoundingClientRect() : null;
+    const endRect   = lumiImageRef.current ? lumiImageRef.current.getBoundingClientRect() : null;
+
+    if (startRect && endRect) {
+      setFoodAnimation({
+        startX: startRect.left + startRect.width / 2,
+        startY: startRect.top  + startRect.height / 2,
+        endX:   endRect.left + endRect.width / 2,
+        endY:   endRect.top  + endRect.height / 2,
+      });
+      setEatingFood(food);
+      setIsEating(true);
+
+      // ── 2. Flying food lands (~800ms) → fade it out, start reaction ──
+      setTimeout(() => {
+        // Fade out the flying food element before unmounting
+        setFoodFadingOut(true);
+        setTimeout(() => {
+          setIsEating(false);
+          setEatingFood(null);
+          setFoodAnimation(null);
+          setFoodFadingOut(false);
+        }, 200);
+
+        const reaction = FOOD_REACTIONS[food.id];
+        if (reaction) {
+          setActiveReaction(reaction);
+          setReactionKey((k) => k + 1);
+
+          // ── 3. Reaction plays (~1.5s) → fade particles, show success glow ──
+          setTimeout(() => {
+            // Fade out particles smoothly before clearing them
+            setParticlesFadingOut(true);
+            setTimeout(() => {
+              setActiveReaction(null);
+              setParticlesFadingOut(false);
+            }, 300);
+
+            // ── 4. Show purple success glow around Lumi ──────────────────
+            setSuccessGlow(true);
+            setTimeout(() => setSuccessGlow(false), 900);
+
+            // ── 5. Show floating XP + happiness reward labels ─────────────
+            const rewardId = Date.now();
+            setFloatingRewards((prev) => [...prev, { id: rewardId, xp: food.xp, happiness: food.happiness }]);
+            // Auto-remove after the float animation completes (~1.6s)
+            setTimeout(() => {
+              setFloatingRewards((prev) => prev.filter((r) => r.id !== rewardId));
+            }, 1600);
+          }, 1500);
+        }
+      }, 800);
+    }
+
+    // Play feed sound effect
+    const feedSound = feedSoundRef.current;
+    feedSound.currentTime = 0;
+    feedSound.play().catch(() => {});
+
+    // Start the cooldown immediately so the UI updates right away
+    startCooldown(food.id, FOOD_COOLDOWNS[food.id]);
 
     // Flash animation on the action card
     setFeedFlash(true);
@@ -418,7 +788,7 @@ export default function PetPage() {
     // Success message (stays 2.5 s)
     setFeedSuccess(food);
     setTimeout(() => setFeedSuccess(null), 2500);
-  }, [awardXP, triggerCelebration]);
+  }, [awardXP, triggerCelebration, startCooldown, isCooldownActive, isEating, closeFeedMenuSmooth]);
 
   /* ── Gift Lumi ─────────────────────────────
      1. User picks a gift  → opens the opening animation
@@ -426,12 +796,22 @@ export default function PetPage() {
      3. Stats saved to localStorage
   ─────────────────────────────────────────── */
   const handleGiftSelect = useCallback((gift) => {
+    if (isCooldownActive(gift.id)) return;
     setShowGiftMenu(false);
     setGiftFlash(true);
     setTimeout(() => setGiftFlash(false), 600);
+
+    // Play gift sound effect
+    const giftSound = giftSoundRef.current;
+    giftSound.currentTime = 0;
+    giftSound.play().catch(() => {});
+
+    // Start the cooldown immediately so the UI updates right away
+    startCooldown(gift.id, GIFT_COOLDOWNS[gift.id]);
+
     // Store the chosen gift; modal will call handleGiftCollect
     setGiftOpening(gift);
-  }, []);
+  }, [startCooldown, isCooldownActive]);
 
   const handleGiftCollect = useCallback(() => {
     const gift = giftOpening;
@@ -486,12 +866,6 @@ export default function PetPage() {
     awardXP(50);
   }, [giftClaimed, awardXP]);
 
-  const milestones    = getMilestones(data.level);
-  const xpPct         = Math.round((data.xp / data.xpForNext) * 100);
-  const moodLabel     = MOOD_LABEL[mood]  ?? "Happy";
-  const moodEmoji     = MOOD_EMOJI[mood]  ?? "😊";
-  const moodDesc      = MOOD_DESC[mood]   ?? "Lumi is feeling great today!";
-
   // Derive level info from the canonical petXP stored in PetContext
   const lumiLevel     = getLevel(petXP);
   const lumiCurrentXP = getCurrentLevelXP(petXP);
@@ -499,14 +873,54 @@ export default function PetPage() {
   const lumiXpPct     = lumiNextXP > 0 ? Math.min(100, Math.round((lumiCurrentXP / lumiNextXP) * 100)) : 100;
   const lumiXpToNext  = lumiNextXP - lumiCurrentXP;
 
+  const milestones    = getMilestones(lumiLevel);
+  const xpPct         = Math.round((data.xp / data.xpForNext) * 100);
+  const moodLabel     = MOOD_LABEL[mood]  ?? "Happy";
+  const moodEmoji     = MOOD_EMOJI[mood]  ?? "😊";
+  const moodDesc      = MOOD_DESC[mood]   ?? "Lumi is feeling great today!";
+
   return (
     <div className="pet-page">
+
+      {/* ── Flying food animation ── */}
+      <AnimatePresence>
+        {isEating && eatingFood && foodAnimation && (
+          <motion.div
+            className="pet-flying-food"
+            style={{
+              position: "fixed",
+              left: 0,
+              top: 0,
+              zIndex: 9999,
+              pointerEvents: "none",
+              fontSize: "2rem",
+            }}
+            initial={{
+              x: foodAnimation.startX,
+              y: foodAnimation.startY,
+              opacity: 1,
+              scale: 1,
+            }}
+            animate={{
+              x: foodAnimation.endX,
+              y: foodAnimation.endY,
+              opacity: foodFadingOut ? 0 : 0,
+              scale: foodFadingOut ? 0.6 : 1.4,
+            }}
+            exit={{ opacity: 0, scale: 0.5, transition: { duration: 0.2 } }}
+            transition={{ duration: 0.8, ease: "easeInOut" }}
+          >
+            {eatingFood.emoji}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Gift picker overlay ── */}
       {showGiftMenu && (
         <GiftMenu
           onSelect={handleGiftSelect}
           onClose={() => setShowGiftMenu(false)}
+          getRemainingCooldown={getRemainingCooldown}
         />
       )}
 
@@ -529,10 +943,13 @@ export default function PetPage() {
       )}
 
       {/* ── Food picker overlay ── */}
-      {showFeedMenu && (
+      {(showFeedMenu || feedMenuClosing) && (
         <FeedMenu
           onSelect={handleFoodSelect}
-          onClose={() => setShowFeedMenu(false)}
+          onClose={closeFeedMenuSmooth}
+          getRemainingCooldown={getRemainingCooldown}
+          isEating={isEating}
+          isClosing={feedMenuClosing}
         />
       )}
 
@@ -581,10 +998,63 @@ export default function PetPage() {
 
       {/* ── Pet Hero ── */}
       <section className="pet-hero">
-        <div className="pet-hero-image-wrap">
+        <div className="pet-hero-image-wrap" style={{ position: "relative" }}>
           <div className="pet-hero-glow" />
           <div className="pet-hero-ring" />
-          <img src={lumi} alt="Lumi the cosmic cat" className="pet-hero-image" />
+
+          {/* Lumi's image — wrapped in motion.div so reactions can bounce it */}
+          <motion.div
+            key={reactionKey}
+            animate={
+              activeReaction
+                ? { y: buildBounceFrames(activeReaction.bounces) }
+                : { y: 0 }
+            }
+            transition={
+              activeReaction
+                ? {
+                    duration: 0.35 * Math.max(1, activeReaction.bounces || 1),
+                    ease: "easeOut",
+                  }
+                : { duration: 0 }
+            }
+          >
+            <img ref={lumiImageRef} src={lumi} alt="Lumi the cosmic cat" className="pet-hero-image" />
+          </motion.div>
+
+          {/* ── Food reaction overlay: glow, hearts, sparkles ── */}
+          <AnimatePresence>
+            {activeReaction && (
+              <LumiReaction key={`fx-${reactionKey}`} reaction={activeReaction} fadingOut={particlesFadingOut} />
+            )}
+          </AnimatePresence>
+
+          {/* ── Success glow: purple magical ring that appears after rewards land ── */}
+          <AnimatePresence>
+            {successGlow && (
+              <motion.div
+                className="pet-success-glow"
+                style={{
+                  position: "absolute",
+                  inset: "-20px",
+                  borderRadius: "50%",
+                  pointerEvents: "none",
+                  zIndex: 10,
+                }}
+                initial={{ opacity: 0, scale: 0.7 }}
+                animate={{ opacity: [0, 1, 0.85, 0], scale: [0.7, 1.15, 1.25, 1.4] }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.9, ease: "easeOut", times: [0, 0.25, 0.6, 1] }}
+              />
+            )}
+          </AnimatePresence>
+
+          {/* ── Floating reward labels: +XP and +❤️ after reaction ── */}
+          <AnimatePresence>
+            {floatingRewards.map((reward) => (
+              <FloatingRewardLabels key={reward.id} xp={reward.xp} happiness={reward.happiness} />
+            ))}
+          </AnimatePresence>
         </div>
 
         <div className="pet-hero-info">
@@ -723,9 +1193,9 @@ export default function PetPage() {
 
             <div className="pet-milestone-track">
               {milestones.map((lv, idx) => {
-                const isPast    = lv < data.level;
-                const isCurrent = lv === data.level;
-                const isNext    = lv > data.level;
+                const isPast    = lv < lumiLevel;
+                const isCurrent = lv === lumiLevel;
+                const isNext    = lv > lumiLevel;
                 return (
                   <div key={lv} className="pet-milestone-item">
                     <div

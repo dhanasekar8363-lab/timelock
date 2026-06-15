@@ -99,6 +99,22 @@ export const MOODS = {
 
 const XP_STORAGE_KEY           = "lumi_pet_xp";
 const SEEN_LEVELS_STORAGE_KEY  = "lumi_seen_levels";
+const COOLDOWNS_STORAGE_KEY    = "lumi_cooldowns";
+
+/* ══════════════════════════════════════════
+   Food & Gift cooldown durations (minutes)
+══════════════════════════════════════════ */
+export const FOOD_COOLDOWNS = {
+  snack: 5,
+  fish: 15,
+  premiumMeal: 60,
+};
+
+export const GIFT_COOLDOWNS = {
+  toy: 20,
+  crystal: 40,
+  cosmicStar: 90,
+};
 
 /* ══════════════════════════════════════════
    XP / Level utilities
@@ -187,6 +203,77 @@ export function PetProvider({ children }) {
       }
     })()
   );
+
+  /**
+   * Cooldowns: itemId -> end timestamp (ms since epoch).
+   * Loaded once from localStorage on startup so cooldowns persist
+   * across page refreshes.
+   */
+  const cooldownsRef = useRef(
+    (() => {
+      try {
+        const raw = localStorage.getItem(COOLDOWNS_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : {};
+      } catch {
+        return {};
+      }
+    })()
+  );
+
+  const persistCooldowns = useCallback(() => {
+    try {
+      localStorage.setItem(
+        COOLDOWNS_STORAGE_KEY,
+        JSON.stringify(cooldownsRef.current),
+      );
+    } catch {
+      console.warn("[PetContext] Could not persist cooldowns.");
+    }
+  }, []);
+
+  /**
+   * Starts (or restarts) a cooldown for `itemId` lasting `durationMinutes`.
+   * Stores the absolute end timestamp so it survives page refreshes.
+   */
+  const startCooldown = useCallback((itemId, durationMinutes) => {
+    if (!itemId || typeof durationMinutes !== "number" || durationMinutes <= 0) {
+      console.warn(
+        `[PetContext] startCooldown expects (itemId, positiveDurationMinutes), got: (${itemId}, ${durationMinutes})`,
+      );
+      return;
+    }
+    const endTimestamp = Date.now() + durationMinutes * 60 * 1000;
+    cooldownsRef.current = { ...cooldownsRef.current, [itemId]: endTimestamp };
+    persistCooldowns();
+  }, [persistCooldowns]);
+
+  /**
+   * Returns the remaining cooldown time for `itemId` in whole seconds.
+   * Returns 0 if there is no active cooldown.
+   */
+  const getRemainingCooldown = useCallback((itemId) => {
+    const endTimestamp = cooldownsRef.current[itemId];
+    if (!endTimestamp) return 0;
+    const remainingMs = endTimestamp - Date.now();
+    if (remainingMs <= 0) {
+      // Cooldown has expired — clean it up
+      if (itemId in cooldownsRef.current) {
+        const { [itemId]: _removed, ...rest } = cooldownsRef.current;
+        cooldownsRef.current = rest;
+        persistCooldowns();
+      }
+      return 0;
+    }
+    return Math.ceil(remainingMs / 1000);
+  }, [persistCooldowns]);
+
+  /**
+   * Returns true if `itemId` currently has an active (non-expired) cooldown.
+   */
+  const isCooldownActive = useCallback((itemId) => {
+    return getRemainingCooldown(itemId) > 0;
+  }, [getRemainingCooldown]);
+
 
   // Persist XP to localStorage whenever it changes
   useEffect(() => {
@@ -290,6 +377,9 @@ export function PetProvider({ children }) {
         addXP,
         levelUpReward,
         clearLevelUpReward,
+        startCooldown,
+        getRemainingCooldown,
+        isCooldownActive,
       }}
     >
       {children}
