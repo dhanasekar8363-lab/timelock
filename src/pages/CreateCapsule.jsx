@@ -704,7 +704,7 @@ function CreateCapsule() {
     addXP(rewardXP);
     try {
       localStorage.setItem(
-        "lumi_capsule_reward_event",
+        "pet_xp_reward",
         JSON.stringify({ type: "capsule_created", rewardXP, timestamp: Date.now() }),
       );
     } catch {
