@@ -22,10 +22,19 @@ const HIDDEN_KEY       = "lumi_hidden";
 const NAV_HEIGHT       = 68;    // px — keep Lumi above bottom nav
 const PET_SIZE         = 72;    // px
 const LONG_PRESS_MS    = 600;   // ms to trigger menu
+const LONG_PRESS_SOUND_MS = 800; // ms to trigger purr sound on long-press
 const SLEEP_TIMEOUT_MS = 60000; // 60 s of no interaction → sleep mode
 const SPEECH_MIN_MS    = 120000; // 2 min
 const SPEECH_MAX_MS    = 180000; // 3 min
 const SPEECH_SHOW_MS   = 5000;  // bubble visible for 5 s
+
+/* ─────────────────────────────────────────────
+   Sound effects
+───────────────────────────────────────────── */
+const SOUND_TAP   = "/sounds/lumi-tap.mp3";
+const SOUND_PURR  = "/sounds/lumi-purr.mp3";
+const SOUND_SPARK = "/sounds/lumi-spark.mp3";
+const SPARK_SOUND_CHANCE = 0.3; // 30% chance to also play the spark sound on tap
 
 /* ─────────────────────────────────────────────
    Random speech messages
@@ -250,6 +259,43 @@ export default function PetCompanion() {
 
   /* ── Long-press timer ── */
   const longPressTimer = useRef(null);
+  const longPressSoundTimer = useRef(null);
+
+  /* ── Sound effect refs ── */
+  const tapSoundRef   = useRef(null);
+  const purrSoundRef  = useRef(null);
+  const sparkSoundRef = useRef(null);
+
+  // Create Audio instances once on mount
+  useEffect(() => {
+    tapSoundRef.current   = new Audio(SOUND_TAP);
+    purrSoundRef.current  = new Audio(SOUND_PURR);
+    sparkSoundRef.current = new Audio(SOUND_SPARK);
+  }, []);
+
+  /* ─────────────────────────────────────────
+     Play a sound effect from scratch.
+     - Resets currentTime so sounds can overlap/retrigger.
+     - Swallows autoplay-blocked / play() rejection errors.
+  ───────────────────────────────────────── */
+  const playSound = useCallback((audioRef) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    try {
+      audio.currentTime = 0;
+    } catch (_) {
+      // ignore — some browsers throw if media isn't ready yet
+    }
+
+    const playPromise = audio.play();
+    if (playPromise && typeof playPromise.catch === "function") {
+      playPromise.catch(() => {
+        // Autoplay blocked or interrupted — safe to ignore
+      });
+    }
+  }, []);
+
 
   /* ── Sleep timer ── */
   const sleepTimer      = useRef(null);
@@ -308,6 +354,7 @@ export default function PetCompanion() {
     return () => {
       clearTimeout(sleepTimer.current);
       clearInterval(zzzInterval.current);
+      clearTimeout(longPressSoundTimer.current);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -361,8 +408,15 @@ export default function PetCompanion() {
       }
     }, LONG_PRESS_MS);
 
+    // Separate timer for the long-press purr sound (fires at 800ms)
+    longPressSoundTimer.current = setTimeout(() => {
+      if (!hasMoved.current) {
+        playSound(purrSoundRef);
+      }
+    }, LONG_PRESS_SOUND_MS);
+
     resetSleepTimer();
-  }, [pos, resetSleepTimer]);
+  }, [pos, resetSleepTimer, playSound]);
 
   const onPointerMove = useCallback((e) => {
     if (!isDragging.current) return;
@@ -373,6 +427,7 @@ export default function PetCompanion() {
     if (!hasMoved.current && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
       hasMoved.current = true;
       clearTimeout(longPressTimer.current);
+      clearTimeout(longPressSoundTimer.current);
       setMenuOpen(false);
     }
 
@@ -387,6 +442,7 @@ export default function PetCompanion() {
 
   const onPointerUp = useCallback((e) => {
     clearTimeout(longPressTimer.current);
+    clearTimeout(longPressSoundTimer.current);
     isDragging.current = false;
 
     if (!hasMoved.current) {
@@ -419,6 +475,12 @@ export default function PetCompanion() {
   const handleTap = useCallback(() => {
     resetSleepTimer();
 
+    // Sound effects: tap always plays, spark plays 30% of the time
+    playSound(tapSoundRef);
+    if (Math.random() < SPARK_SOUND_CHANCE) {
+      playSound(sparkSoundRef);
+    }
+
     setTapped(true);
     setTimeout(() => setTapped(false), 300);
 
@@ -436,7 +498,7 @@ export default function PetCompanion() {
     clearTimeout(tooltipTimer.current);
     setTooltip(msg);
     tooltipTimer.current = setTimeout(() => setTooltip(null), 2200);
-  }, [resetSleepTimer]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [resetSleepTimer, playSound]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ─────────────────────────────────────────
      Public event API — capsule / message hooks
