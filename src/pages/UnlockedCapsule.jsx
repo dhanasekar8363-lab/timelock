@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import unlockBg from "../assets/backgrounds/unlock-bg.png";
+import { usePet } from "../contexts/PetContext";
 import "./UnlockedCapsule.css";
 
 /* ── Sparkle particle ── */
@@ -226,6 +227,15 @@ function UnlockedCapsule({ capsule }) {
   const [visible, setVisible] = useState(false);
   const [shared, setShared] = useState(false);
   const cardRef = useRef(null);
+
+  const { triggerCapsuleUnlockReward } = usePet();
+
+  // Fire the XP reward exactly once when this component mounts,
+  // i.e. when the user has successfully opened the capsule.
+  useEffect(() => {
+    triggerCapsuleUnlockReward();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — reward fires once per mount
 
   const title        = capsule?.title || "A Message From The Past";
   const senderName   = capsule?.sender_name   || capsule?.senderName   || "Someone Special";

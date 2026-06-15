@@ -100,6 +100,7 @@ export const MOODS = {
 const XP_STORAGE_KEY           = "lumi_pet_xp";
 const SEEN_LEVELS_STORAGE_KEY  = "lumi_seen_levels";
 const COOLDOWNS_STORAGE_KEY    = "lumi_cooldowns";
+const UNLOCK_REWARD_EVENT_KEY  = "lumi_unlock_reward_event";
 
 /* ══════════════════════════════════════════
    Food & Gift cooldown durations (minutes)
@@ -364,6 +365,52 @@ export function PetProvider({ children }) {
     }, 8000);
   }, []);
 
+  /**
+   * Awards Lumi XP when a capsule is unlocked, then fires the
+   * "capsuleUnlocked" pet event so the companion can react.
+   *
+   * Reward formula:
+   *   rewardXP = Math.ceil(getNextLevelXP(currentXP) * 0.5)
+   *
+   * A temporary record is written to localStorage under
+   * UNLOCK_REWARD_EVENT_KEY so other surfaces can inspect it.
+   * The record is not cleared here — the caller is responsible
+   * for reading / clearing it when needed.
+   */
+  const triggerCapsuleUnlockReward = useCallback(() => {
+    // Read XP synchronously from localStorage so we don't rely on
+    // stale closure state. Falls back to 0 if nothing is stored yet.
+    const storedXP = (() => {
+      try {
+        const raw = localStorage.getItem(XP_STORAGE_KEY);
+        return raw !== null ? Number(raw) : 0;
+      } catch {
+        return 0;
+      }
+    })();
+
+    const xpNeededThisLevel = getNextLevelXP(storedXP);
+    const rewardXP          = Math.ceil(xpNeededThisLevel * 0.5);
+
+    // Persist the reward event so other surfaces can read it
+    try {
+      localStorage.setItem(
+        UNLOCK_REWARD_EVENT_KEY,
+        JSON.stringify({
+          type:      "capsule_unlocked",
+          rewardXP,
+          timestamp: Date.now(),
+        }),
+      );
+    } catch {
+      console.warn("[PetContext] Could not persist unlock reward event.");
+    }
+
+    // Grant the XP and fire the pet event
+    addXP(rewardXP);
+    triggerPetEvent("capsuleUnlocked");
+  }, [addXP, triggerPetEvent]);
+
   return (
     <PetContext.Provider
       value={{
@@ -380,6 +427,7 @@ export function PetProvider({ children }) {
         startCooldown,
         getRemainingCooldown,
         isCooldownActive,
+        triggerCapsuleUnlockReward,
       }}
     >
       {children}

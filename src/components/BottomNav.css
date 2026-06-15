@@ -124,3 +124,47 @@
   }
   .nav-item.nav-active .nav-icon { transform: scale(1.2); }
 }
+
+/* ── XP Reward Popup ── */
+.xp-popup {
+  position: absolute;
+  bottom: calc(100% + 6px); /* sits just above the nav button */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  pointer-events: none;
+  white-space: nowrap;
+
+  background: linear-gradient(135deg, rgba(124, 92, 255, 0.92), rgba(168, 139, 255, 0.82));
+  border: 1.5px solid rgba(200, 170, 255, 0.6);
+  border-radius: 999px;
+  padding: 5px 14px;
+
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.4px;
+
+  box-shadow:
+    0 0 18px rgba(124, 92, 255, 0.75),
+    0 0 36px rgba(124, 92, 255, 0.4),
+    0 4px 12px rgba(0, 0, 0, 0.35);
+
+  /* Ambient purple pulse */
+  animation: xp-glow-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes xp-glow-pulse {
+  0%, 100% { box-shadow: 0 0 18px rgba(124, 92, 255, 0.75), 0 0 36px rgba(124, 92, 255, 0.4), 0 4px 12px rgba(0, 0, 0, 0.35); }
+  50%       { box-shadow: 0 0 28px rgba(160, 120, 255, 0.95), 0 0 56px rgba(160, 120, 255, 0.55), 0 4px 12px rgba(0, 0, 0, 0.35); }
+}
+
+/* Wrapper that lets the popup overflow outside the nav bar */
+.nav-item-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: visible !important;
+}

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase, sendMessage, isEmail, searchProfiles } from "../services/supabase";
 import { useAuth } from "../contexts/AuthContext";
-import { usePet } from "../contexts/PetContext";
+import { usePet, getLevel, getNextLevelXP } from "../contexts/PetContext";
 import { playSound } from "../utils/sounds";
 import "./CreateCapsule.css";
 import createBg from "../assets/backgrounds/create-bg.jpg";
@@ -230,7 +230,7 @@ function CreateCapsule() {
   // Fix 6: consume the already-authenticated user from context instead of
   // calling supabase.auth.getUser() inside saveCapsule on every submission.
   const { user } = useAuth();
-  const { triggerPetEvent } = usePet();
+  const { triggerPetEvent, addXP, petXP } = usePet();
 
   /* recipient pre-fill from URL (e.g. ?shareWith=USERID&shareWithName=USERNAME) */
   const [shareWithUserId, setShareWithUserId] = useState(null);
@@ -696,6 +696,21 @@ function CreateCapsule() {
 
     // 🔊 Play send sound on successful capsule creation
     playSound("capsuleSend");
+
+    // ⭐ Lumi XP reward — 70 % of the XP required to complete the current level
+    const currentLevel  = getLevel(petXP);
+    const xpNeededThisLevel = getNextLevelXP(petXP);          // XP to advance from currentLevel → next
+    const rewardXP      = Math.round(xpNeededThisLevel * 0.7);
+    addXP(rewardXP);
+    try {
+      localStorage.setItem(
+        "lumi_capsule_reward_event",
+        JSON.stringify({ type: "capsule_created", rewardXP, timestamp: Date.now() }),
+      );
+    } catch {
+      console.warn("[CreateCapsule] Could not persist Lumi reward event.");
+    }
+
     // 🐾 Lumi jumps and shoots confetti
     triggerPetEvent("capsuleCreated");
     const capsuleUrl = `${window.location.origin}/capsule/${savedSlug}`;
