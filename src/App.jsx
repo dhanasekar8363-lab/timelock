@@ -22,6 +22,7 @@ import Notifications   from "./pages/Notifications";
 import BottomNav       from "./components/BottomNav";
 import PetCompanion    from "./components/PetCompanion";
 import { PetProvider } from "./contexts/PetContext";
+import PetPage         from "./pages/PetPage";
 
 // Pages that should NOT show the bottom nav
 const NO_NAV_ROUTES = ["/login"];
@@ -77,6 +78,7 @@ export default function App() {
   return (
     <PetProvider>
       <RouterProvider router={router} />
+      <Route path="/pet" element={<PetPage />} />
     </PetProvider>
   );
 }
