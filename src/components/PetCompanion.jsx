@@ -10,7 +10,7 @@
 
 import { useRef, useState, useEffect, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import lumi from "../assets/lumi.png";
 import { usePet, MOODS } from "../contexts/PetContext";
 import "./PetCompanion.css";
@@ -269,12 +269,8 @@ export default function PetCompanion() {
   const hasMoved    = useRef(false);
   const wrapperRef  = useRef(null);
 
-  /* ── Navigation ── */
-  const navigate = useNavigate();
-
   /* ── UI state ── */
   const [menuOpen,        setMenuOpen]        = useState(false);
-  const [tapMenuOpen,     setTapMenuOpen]     = useState(false);
   const [tapped,          setTapped]          = useState(false);
   const [tooltip,         setTooltip]         = useState(null);
   const [particles,       setParticles]       = useState([]);
@@ -538,10 +534,9 @@ export default function PetCompanion() {
   }, [resetSleepTimer, playSound]);
 
   const handleTap = useCallback(() => {
-    resetSleepTimer();
-    setTapMenuOpen((prev) => !prev);
+    petLumi();
     setMenuOpen(false);
-  }, [resetSleepTimer]);
+  }, [petLumi]);
 
   /* ─────────────────────────────────────────
      Pointer drag handlers
@@ -703,16 +698,15 @@ export default function PetCompanion() {
      Close menu on outside click
   ───────────────────────────────────────── */
   useEffect(() => {
-    if (!menuOpen && !tapMenuOpen) return;
+    if (!menuOpen) return;
     const close = (e) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
         setMenuOpen(false);
-        setTapMenuOpen(false);
       }
     };
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
-  }, [menuOpen, tapMenuOpen]);
+  }, [menuOpen]);
 
   /* ─────────────────────────────────────────
      Render — restore button when hidden
@@ -904,70 +898,6 @@ export default function PetCompanion() {
             transition={{ duration: 0.2 }}
           >
             {tooltip}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Tap menu (quick actions) ── */}
-      <AnimatePresence>
-        {tapMenuOpen && (
-          <motion.div
-            className="lumi-menu"
-            key="tap-menu"
-            initial={{ opacity: 0, scale: 0.85, y: 8 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.85, y: 8 }}
-            transition={{ type: "spring", stiffness: 360, damping: 28 }}
-          >
-            <button
-              className="lumi-menu-item"
-              onClick={() => { setTapMenuOpen(false); navigate("/pet"); }}
-            >
-              <span className="lumi-menu-icon">🐱</span>
-              Pet Profile
-            </button>
-
-            <div className="lumi-menu-divider" />
-
-            <button
-              className="lumi-menu-item"
-              onClick={() => {
-                setTapMenuOpen(false);
-                petLumi();
-                clearTimeout(tooltipTimer.current);
-                setTooltip("Mmm, yummy! 😋");
-                tooltipTimer.current = setTimeout(() => setTooltip(null), 2000);
-              }}
-            >
-              <span className="lumi-menu-icon">🍖</span>
-              Feed Lumi
-            </button>
-
-            <button
-              className="lumi-menu-item"
-              onClick={() => {
-                setTapMenuOpen(false);
-                setAnimState("bounce");
-                setTimeout(() => setAnimState("idle"), 900);
-                setParticles(makeHearts(6));
-                clearTimeout(tooltipTimer.current);
-                setTooltip("A gift! I love you! 🎁");
-                tooltipTimer.current = setTimeout(() => setTooltip(null), 2200);
-              }}
-            >
-              <span className="lumi-menu-icon">🎁</span>
-              Gift Lumi
-            </button>
-
-            <div className="lumi-menu-divider" />
-
-            <button
-              className="lumi-menu-item"
-              onClick={() => { setTapMenuOpen(false); navigate("/pet"); }}
-            >
-              <span className="lumi-menu-icon">📊</span>
-              Stats
-            </button>
           </motion.div>
         )}
       </AnimatePresence>

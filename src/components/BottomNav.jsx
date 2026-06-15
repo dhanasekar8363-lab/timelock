@@ -10,6 +10,7 @@ function BottomNav() {
     { icon: "➕", label: "Create",   path: "/create" },
     { icon: "🔍", label: "Search",   path: "/search" },
     { icon: "💬", label: "Messages", path: "/messages" },
+    { icon: "🐱", label: "Pet",      path: "/pet" },
     { icon: "👤", label: "Profile",  path: "/profile" },
   ];
 
