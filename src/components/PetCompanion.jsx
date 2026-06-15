@@ -10,23 +10,33 @@
 
 import { useRef, useState, useEffect, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useLocation } from "react-router-dom";
 import lumi from "../assets/lumi.png";
-import { usePet } from "../contexts/PetContext";
+import { usePet, MOODS } from "../contexts/PetContext";
 import "./PetCompanion.css";
 
 /* ─────────────────────────────────────────────
    Constants
 ───────────────────────────────────────────── */
-const STORAGE_KEY      = "lumi_position";
-const HIDDEN_KEY       = "lumi_hidden";
-const NAV_HEIGHT       = 68;    // px — keep Lumi above bottom nav
-const PET_SIZE         = 72;    // px
-const LONG_PRESS_MS    = 600;   // ms to trigger menu
-const LONG_PRESS_SOUND_MS = 800; // ms to trigger purr sound on long-press
-const SLEEP_TIMEOUT_MS = 60000; // 60 s of no interaction → sleep mode
-const SPEECH_MIN_MS    = 120000; // 2 min
-const SPEECH_MAX_MS    = 180000; // 3 min
-const SPEECH_SHOW_MS   = 5000;  // bubble visible for 5 s
+const STORAGE_KEY         = "lumi_position";
+const HIDDEN_KEY          = "lumi_hidden";
+const NAV_HEIGHT          = 68;    // px — keep Lumi above bottom nav
+const PET_SIZE            = 72;    // px
+const LONG_PRESS_MS       = 600;   // ms to trigger menu
+const LONG_PRESS_SOUND_MS = 800;   // ms to trigger purr sound on long-press
+const SLEEP_TIMEOUT_MS    = 120000; // 2 min of no interaction → sleepy mood + sleep mode
+const SPEECH_MIN_MS       = 120000; // 2 min
+const SPEECH_MAX_MS       = 180000; // 3 min
+const SPEECH_SHOW_MS      = 5000;  // bubble visible for 5 s
+
+/* ─────────────────────────────────────────────
+   Page → mood map
+───────────────────────────────────────────── */
+const PAGE_MOODS = {
+  "/":         "happy",
+  "/create":   "excited",
+  "/messages": "curious",
+};
 
 /* ─────────────────────────────────────────────
    Sound effects
@@ -34,10 +44,10 @@ const SPEECH_SHOW_MS   = 5000;  // bubble visible for 5 s
 const SOUND_TAP   = "/sounds/lumi-tap.mp3";
 const SOUND_PURR  = "/sounds/lumi-purr.mp3";
 const SOUND_SPARK = "/sounds/lumi-spark.mp3";
-const SPARK_SOUND_CHANCE = 0.3; // 30% chance to also play the spark sound on tap
+const SPARK_SOUND_CHANCE = 0.3;
 
 /* ─────────────────────────────────────────────
-   Random speech messages
+   Random speech messages (fallback / generic)
 ───────────────────────────────────────────── */
 const RANDOM_SPEECHES = [
   "Hi Dhana! ✨",
@@ -67,7 +77,7 @@ function LumiImage({ animState }) {
    Floating heart — rises and fades out
 ───────────────────────────────────────────── */
 function FloatingHeart({ id, onDone }) {
-  const offsetX = (Math.random() - 0.5) * 40; // spread horizontally
+  const offsetX = (Math.random() - 0.5) * 40;
 
   useEffect(() => {
     const t = setTimeout(onDone, 1500);
@@ -151,7 +161,7 @@ function makeConfetti(n) {
 }
 
 /* ─────────────────────────────────────────────
-   Confetti particle — pops out in random direction and colour
+   Confetti particle
 ───────────────────────────────────────────── */
 const CONFETTI_COLORS = ["#FF6B9D", "#FFD93D", "#6BCB77", "#4D96FF", "#C77DFF", "#FF9A3C"];
 
@@ -194,7 +204,6 @@ function ConfettiParticle({ id, onDone }) {
   );
 }
 
-
 function makeBurst(n) {
   return Array.from({ length: n }, (_, i) => ({ id: Date.now() + i, type: "sparkle" }));
 }
@@ -209,6 +218,26 @@ function makeFloatingHearts(n) {
 }
 function makeZzzs(n) {
   return Array.from({ length: n }, (_, i) => ({ id: Date.now() + i + 20000 }));
+}
+
+/* ─────────────────────────────────────────────
+   Pick a random speech for the current mood
+───────────────────────────────────────────── */
+function pickMoodSpeech(mood) {
+  const pool = MOODS[mood]?.speeches ?? RANDOM_SPEECHES;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+/* ─────────────────────────────────────────────
+   Resolve aura CSS class from mood + sleeping
+───────────────────────────────────────────── */
+function auraClass(mood, sleeping) {
+  if (sleeping) return "lumi-aura lumi-aura--dim";
+  const strength = MOODS[mood]?.glowStrength ?? "normal";
+  if (strength === "strong")  return "lumi-aura lumi-aura--strong";
+  if (strength === "dim")     return "lumi-aura lumi-aura--dim";
+  if (strength === "off")     return "lumi-aura lumi-aura--off";
+  return "lumi-aura"; // normal
 }
 
 /* ─────────────────────────────────────────────
@@ -251,14 +280,18 @@ export default function PetCompanion() {
   const [zzzParticles,    setZzzParticles]    = useState([]);
 
   /* ── Animation state for the image ── */
-  // "idle" | "tap" | "bounce"
   const [animState, setAnimState] = useState("idle");
 
-  /* ── Pet context (capsule reactions) ── */
-  const { activeEvent, clearPetEvent } = usePet();
+  /* ── Pet context ── */
+  const {
+    activeEvent,
+    clearPetEvent,
+    mood,
+    setMoodForPage,
+  } = usePet();
 
-  /* ── Long-press timer ── */
-  const longPressTimer = useRef(null);
+  /* ── Long-press timers ── */
+  const longPressTimer      = useRef(null);
   const longPressSoundTimer = useRef(null);
 
   /* ── Sound effect refs ── */
@@ -266,8 +299,59 @@ export default function PetCompanion() {
   const purrSoundRef  = useRef(null);
   const sparkSoundRef = useRef(null);
 
-  // Create Audio instances once on mount, and clean them up on unmount
-  // so they stop playing and release their resources.
+  /* ── Location (for page-based mood) ── */
+  const location = useLocation();
+
+  /* ─────────────────────────────────────────
+     Set mood when route changes
+  ───────────────────────────────────────── */
+  useEffect(() => {
+    const pageMood = PAGE_MOODS[location.pathname] ?? "happy";
+    setMoodForPage(pageMood);
+  }, [location.pathname, setMoodForPage]);
+
+  /* ─────────────────────────────────────────
+     Curious mood — side-to-side wiggle state
+  ───────────────────────────────────────── */
+  const [wigglePhase, setWigglePhase] = useState(0);
+  const wiggleTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (sleeping) {
+      clearInterval(wiggleTimerRef.current);
+      setWigglePhase(0);
+      return;
+    }
+    if (MOODS[mood]?.sideWiggle) {
+      wiggleTimerRef.current = setInterval(() => {
+        setWigglePhase((p) => p + 1);
+      }, 2400);
+    } else {
+      clearInterval(wiggleTimerRef.current);
+      setWigglePhase(0);
+    }
+    return () => clearInterval(wiggleTimerRef.current);
+  }, [mood, sleeping]);
+
+  /* ─────────────────────────────────────────
+     Celebration sparkle interval
+  ───────────────────────────────────────── */
+  const celebSparkleRef = useRef(null);
+
+  useEffect(() => {
+    if (mood === "celebration" && !sleeping) {
+      celebSparkleRef.current = setInterval(() => {
+        setParticles((prev) => [...prev, ...makeBurst(3)]);
+      }, 700);
+    } else {
+      clearInterval(celebSparkleRef.current);
+    }
+    return () => clearInterval(celebSparkleRef.current);
+  }, [mood, sleeping]);
+
+  /* ─────────────────────────────────────────
+     Audio setup
+  ───────────────────────────────────────── */
   useEffect(() => {
     tapSoundRef.current   = new Audio(SOUND_TAP);
     purrSoundRef.current  = new Audio(SOUND_PURR);
@@ -277,7 +361,6 @@ export default function PetCompanion() {
     purrSoundRef.current.volume  = 0.4;
     sparkSoundRef.current.volume = 0.35;
 
-    // Helps mobile browsers have the audio ready to go as soon as it's unlocked
     tapSoundRef.current.preload   = "auto";
     purrSoundRef.current.preload  = "auto";
     sparkSoundRef.current.preload = "auto";
@@ -290,94 +373,62 @@ export default function PetCompanion() {
           audio.pause();
           audio.src = "";
           audio.load();
-        } catch (_) {
-          // ignore — nothing more we can do during teardown
-        }
+        } catch (_) {}
         ref.current = null;
       });
     };
   }, []);
 
   /* ─────────────────────────────────────────
-     Play a sound effect from scratch.
-     - Resets currentTime so sounds can overlap/retrigger.
-     - Swallows autoplay-blocked / play() rejection errors.
+     Play sound
   ───────────────────────────────────────── */
   const playSound = useCallback((audioRef) => {
     const audio = audioRef.current;
     if (!audio) return;
-
-    try {
-      audio.currentTime = 0;
-    } catch (_) {
-      // ignore — some browsers throw if media isn't ready yet
-    }
-
-    const playPromise = audio.play();
-    if (playPromise && typeof playPromise.catch === "function") {
-      playPromise.catch(() => {
-        // Autoplay blocked or interrupted — safe to ignore
-      });
-    }
+    try { audio.currentTime = 0; } catch (_) {}
+    const p = audio.play();
+    if (p && typeof p.catch === "function") p.catch(() => {});
   }, []);
 
   /* ─────────────────────────────────────────
-     Prime/"unlock" an Audio element for mobile browsers.
-     iOS Safari (and other mobile browsers) only allow audio
-     playback that's triggered synchronously inside a user
-     gesture. The long-press purr sound fires from a setTimeout,
-     which happens *after* the gesture and gets blocked.
-     Calling play()+pause() here, synchronously inside the
-     pointerdown handler, unlocks the element for the rest of
-     the gesture/session so the later delayed play() succeeds.
+     Prime audio for mobile
   ───────────────────────────────────────── */
   const primeAudio = useCallback((audio) => {
     if (!audio) return;
     try {
       const wasMuted = audio.muted;
       audio.muted = true;
-      const playPromise = audio.play();
+      const p = audio.play();
       const settle = () => {
-        try {
-          audio.pause();
-          audio.currentTime = 0;
-        } catch (_) {}
+        try { audio.pause(); audio.currentTime = 0; } catch (_) {}
         audio.muted = wasMuted;
       };
-      if (playPromise && typeof playPromise.then === "function") {
-        playPromise.then(settle).catch(settle);
-      } else {
-        settle();
-      }
-    } catch (_) {
-      // ignore — best effort unlock
-    }
+      if (p && typeof p.then === "function") p.then(settle).catch(settle);
+      else settle();
+    } catch (_) {}
   }, []);
 
-  /* ── Sleep timer ── */
-  const sleepTimer      = useRef(null);
-  const zzzInterval     = useRef(null);
-  const speechTimer     = useRef(null);
-  const tooltipTimer    = useRef(null);
+  /* ── Sleep timers ── */
+  const sleepTimer   = useRef(null);
+  const zzzInterval  = useRef(null);
+  const speechTimer  = useRef(null);
+  const tooltipTimer = useRef(null);
 
-  // Tracks current sleeping state without making resetSleepTimer's
-  // identity change every time `sleeping` toggles.
   const sleepingRef = useRef(sleeping);
-  useEffect(() => {
-    sleepingRef.current = sleeping;
-  }, [sleeping]);
+  useEffect(() => { sleepingRef.current = sleeping; }, [sleeping]);
+
+  // Keep current mood accessible inside callbacks without stale closure
+  const moodRef = useRef(mood);
+  useEffect(() => { moodRef.current = mood; }, [mood]);
 
   /* ─────────────────────────────────────────
-     Clamp helper — keep Lumi fully on screen
+     Clamp + persist position
   ───────────────────────────────────────── */
   const clampPos = useCallback((x, y) => ({
     x: Math.max(0, Math.min(window.innerWidth  - PET_SIZE, x)),
     y: Math.max(0, Math.min(window.innerHeight - PET_SIZE - NAV_HEIGHT, y)),
   }), []);
 
-  /* ─────────────────────────────────────────
-     Persist position
-  ───────────────────────────────────────── */
   const savePos = useCallback((p) => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(p)); } catch (_) {}
   }, []);
@@ -386,12 +437,8 @@ export default function PetCompanion() {
      Sleep mode helpers
   ───────────────────────────────────────── */
   const startZzzLoop = useCallback(() => {
-    // Emit a new zzz particle every 1.2 s while sleeping
     zzzInterval.current = setInterval(() => {
-      setZzzParticles((prev) => [
-        ...prev,
-        { id: Date.now() + Math.random() },
-      ]);
+      setZzzParticles((prev) => [...prev, { id: Date.now() + Math.random() }]);
     }, 1200);
   }, []);
 
@@ -404,15 +451,20 @@ export default function PetCompanion() {
     if (sleepingRef.current) {
       setSleeping(false);
       stopZzzLoop();
+      // Restore mood from sleepy only if we're actually in sleepy mood
+      if (moodRef.current === "sleepy") {
+        const pageMood = PAGE_MOODS[location.pathname] ?? "happy";
+        setMoodForPage(pageMood);
+      }
     }
     clearTimeout(sleepTimer.current);
     sleepTimer.current = setTimeout(() => {
       setSleeping(true);
+      setMoodForPage("sleepy");
       startZzzLoop();
     }, SLEEP_TIMEOUT_MS);
-  }, [startZzzLoop, stopZzzLoop]);
+  }, [startZzzLoop, stopZzzLoop, setMoodForPage, location.pathname]);
 
-  // Kick off sleep timer on mount
   useEffect(() => {
     resetSleepTimer();
     return () => {
@@ -423,13 +475,13 @@ export default function PetCompanion() {
   }, [resetSleepTimer]);
 
   /* ─────────────────────────────────────────
-     Random speech bubble
+     Random speech bubble (mood-aware)
   ───────────────────────────────────────── */
   const scheduleNextSpeech = useCallback(() => {
     clearTimeout(speechTimer.current);
     const delay = SPEECH_MIN_MS + Math.random() * (SPEECH_MAX_MS - SPEECH_MIN_MS);
     speechTimer.current = setTimeout(() => {
-      const msg = RANDOM_SPEECHES[Math.floor(Math.random() * RANDOM_SPEECHES.length)];
+      const msg = pickMoodSpeech(moodRef.current);
       setTooltip(msg);
       clearTimeout(tooltipTimer.current);
       tooltipTimer.current = setTimeout(() => {
@@ -462,25 +514,18 @@ export default function PetCompanion() {
 
   const handleTap = useCallback(() => {
     resetSleepTimer();
-
-    // Sound effects: tap always plays, spark plays 30% of the time
     playSound(tapSoundRef);
-    if (Math.random() < SPARK_SOUND_CHANCE) {
-      playSound(sparkSoundRef);
-    }
+    if (Math.random() < SPARK_SOUND_CHANCE) playSound(sparkSoundRef);
 
     setTapped(true);
     setTimeout(() => setTapped(false), 300);
 
-    // Jump animation
     setAnimState("tap");
     setTimeout(() => setAnimState("idle"), 500);
 
-    // Sparkles + floating hearts
     setParticles(makeBurst(4));
     setFloatingHearts(makeFloatingHearts(4));
 
-    // Tooltip (tap cycle)
     const msg = TAP_MESSAGES[tapCount.current % TAP_MESSAGES.length];
     tapCount.current += 1;
     clearTimeout(tooltipTimer.current);
@@ -497,12 +542,7 @@ export default function PetCompanion() {
     isDragging.current = true;
     hasMoved.current   = false;
 
-    dragStart.current = {
-      px: e.clientX,
-      py: e.clientY,
-      ex: pos.x,
-      ey: pos.y,
-    };
+    dragStart.current = { px: e.clientX, py: e.clientY, ex: pos.x, ey: pos.y };
 
     longPressTimer.current = setTimeout(() => {
       if (!hasMoved.current) {
@@ -511,15 +551,10 @@ export default function PetCompanion() {
       }
     }, LONG_PRESS_MS);
 
-    // Unlock the purr sound for mobile browsers *synchronously*
-    // within this gesture, so the delayed play() below isn't blocked.
     primeAudio(purrSoundRef.current);
 
-    // Separate timer for the long-press purr sound (fires at 800ms)
     longPressSoundTimer.current = setTimeout(() => {
-      if (!hasMoved.current) {
-        playSound(purrSoundRef);
-      }
+      if (!hasMoved.current) playSound(purrSoundRef);
     }, LONG_PRESS_SOUND_MS);
 
     resetSleepTimer();
@@ -527,22 +562,16 @@ export default function PetCompanion() {
 
   const onPointerMove = useCallback((e) => {
     if (!isDragging.current) return;
-
     const dx = e.clientX - dragStart.current.px;
     const dy = e.clientY - dragStart.current.py;
-
     if (!hasMoved.current && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
       hasMoved.current = true;
       clearTimeout(longPressTimer.current);
       clearTimeout(longPressSoundTimer.current);
       setMenuOpen(false);
     }
-
     if (hasMoved.current) {
-      const next = clampPos(
-        dragStart.current.ex + dx,
-        dragStart.current.ey + dy,
-      );
+      const next = clampPos(dragStart.current.ex + dx, dragStart.current.ey + dy);
       setPos(next);
     }
   }, [clampPos]);
@@ -551,16 +580,12 @@ export default function PetCompanion() {
     clearTimeout(longPressTimer.current);
     clearTimeout(longPressSoundTimer.current);
     isDragging.current = false;
-
     if (!hasMoved.current) {
       handleTap();
     } else {
       const dx = e.clientX - dragStart.current.px;
       const dy = e.clientY - dragStart.current.py;
-      const next = clampPos(
-        dragStart.current.ex + dx,
-        dragStart.current.ey + dy,
-      );
+      const next = clampPos(dragStart.current.ex + dx, dragStart.current.ey + dy);
       setPos(next);
       savePos(next);
     }
@@ -572,7 +597,6 @@ export default function PetCompanion() {
   useEffect(() => {
     const onCapsuleCreated = () => {
       resetSleepTimer();
-      // Jump + confetti + speech
       setAnimState("tap");
       setTimeout(() => setAnimState("idle"), 500);
       setConfetti(makeConfetti(22));
@@ -582,7 +606,6 @@ export default function PetCompanion() {
     };
     const onCapsuleUnlocked = () => {
       resetSleepTimer();
-      // Celebrate + sparkle burst
       setParticles([...makeStars(8), ...makeBurst(6)]);
       setAnimState("bounce");
       setTimeout(() => setAnimState("idle"), 800);
@@ -599,7 +622,6 @@ export default function PetCompanion() {
       setTooltip("New message! 📬");
       tooltipTimer.current = setTimeout(() => setTooltip(null), 2200);
     };
-
     window.addEventListener("lumi:capsule-created",  onCapsuleCreated);
     window.addEventListener("lumi:capsule-unlocked", onCapsuleUnlocked);
     window.addEventListener("lumi:message-received", onMessageReceived);
@@ -612,15 +634,12 @@ export default function PetCompanion() {
 
   /* ─────────────────────────────────────────
      React to PetContext activeEvent
-     (triggered via triggerPetEvent in app code)
   ───────────────────────────────────────── */
   useEffect(() => {
     if (!activeEvent) return;
     resetSleepTimer();
+    const { animation, effect, message, duration } = activeEvent;
 
-    const { type, effect, animation, message, duration } = activeEvent;
-
-    // Animation
     if (animation === "jump" || animation === "celebrate") {
       setAnimState("tap");
       setTimeout(() => setAnimState("idle"), 500);
@@ -629,27 +648,18 @@ export default function PetCompanion() {
       setTimeout(() => setAnimState("idle"), 900);
     }
 
-    // Effect
-    if (effect === "confetti") {
-      setConfetti(makeConfetti(24));
-    } else if (effect === "sparkleBurst") {
-      setParticles([...makeStars(8), ...makeBurst(8)]);
-    } else if (effect === "floatingHearts") {
-      setFloatingHearts(makeFloatingHearts(6));
-    } else if (effect === "heart") {
-      setParticles(makeHearts(6));
-    } else if (effect === "sparkle") {
-      setParticles(makeBurst(6));
-    }
+    if (effect === "confetti")          setConfetti(makeConfetti(24));
+    else if (effect === "sparkleBurst") setParticles([...makeStars(8), ...makeBurst(8)]);
+    else if (effect === "floatingHearts") setFloatingHearts(makeFloatingHearts(6));
+    else if (effect === "heart")        setParticles(makeHearts(6));
+    else if (effect === "sparkle")      setParticles(makeBurst(6));
 
-    // Speech bubble
     if (message) {
       clearTimeout(tooltipTimer.current);
       setTooltip(message);
       tooltipTimer.current = setTimeout(() => setTooltip(null), duration ?? 3000);
     }
 
-    // Clear the event from context after consuming it
     const clearId = setTimeout(clearPetEvent, duration ?? 3000);
     return () => clearTimeout(clearId);
   }, [activeEvent, resetSleepTimer, clearPetEvent]);
@@ -715,42 +725,34 @@ export default function PetCompanion() {
 
   /* ─────────────────────────────────────────
      Framer Motion animation variants
+     idleSpeed is a multiplier from the current mood config.
   ───────────────────────────────────────── */
+  const idleSpeed = MOODS[mood]?.idleSpeed ?? 1;
+
   const floatVariants = {
     animate: {
       y: [0, -7, 0, -4, 0],
-      transition: {
-        duration: 4.2,
-        repeat: Infinity,
-        ease: "easeInOut",
-      },
+      transition: { duration: 4.2 * idleSpeed, repeat: Infinity, ease: "easeInOut" },
     },
     sleep: {
       y: [0, -3, 0],
-      transition: {
-        duration: 5,
-        repeat: Infinity,
-        ease: "easeInOut",
-      },
+      transition: { duration: 5, repeat: Infinity, ease: "easeInOut" },
+    },
+    // Curious side wiggle — oscillates left/right every tick of wigglePhase
+    wiggle: {
+      x: [0, -5, 5, -4, 4, -2, 2, 0],
+      transition: { duration: 1.8, ease: "easeInOut" },
     },
   };
 
   const breatheVariants = {
     animate: {
       scale: [1, 1.05, 1, 1.03, 1],
-      transition: {
-        duration: 3.6,
-        repeat: Infinity,
-        ease: "easeInOut",
-      },
+      transition: { duration: 3.6 * idleSpeed, repeat: Infinity, ease: "easeInOut" },
     },
     sleep: {
       scale: [1, 1.02, 1],
-      transition: {
-        duration: 4.5,
-        repeat: Infinity,
-        ease: "easeInOut",
-      },
+      transition: { duration: 4.5, repeat: Infinity, ease: "easeInOut" },
     },
   };
 
@@ -758,6 +760,11 @@ export default function PetCompanion() {
     scale: tapped ? [1, 1.22, 0.92, 1.08, 1] : undefined,
     transition: { duration: 0.35 },
   };
+
+  // Determine float animation key — wiggle fires as a one-shot when wigglePhase changes
+  const floatAnimKey   = MOODS[mood]?.sideWiggle && !sleeping && wigglePhase > 0
+    ? "wiggle"
+    : sleeping ? "sleep" : "animate";
 
   return (
     <div
@@ -769,9 +776,9 @@ export default function PetCompanion() {
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
     >
-      {/* ── Sleep ZZZ particles ── */}
+      {/* ── Sleep ZZZ particles (also shown in sleepy mood) ── */}
       <AnimatePresence>
-        {sleeping && zzzParticles.map((z) => (
+        {(sleeping || mood === "sleepy") && zzzParticles.map((z) => (
           <SleepZzz
             key={z.id}
             id={z.id}
@@ -809,8 +816,9 @@ export default function PetCompanion() {
 
       {/* ── Floating + breathing pet ── */}
       <motion.div
+        key={`float-${floatAnimKey}-${wigglePhase}`}
         variants={floatVariants}
-        animate={sleeping ? "sleep" : "animate"}
+        animate={floatAnimKey}
       >
         <motion.div
           className={`lumi-pet ${tapped ? "tapped" : ""}`}
@@ -823,8 +831,29 @@ export default function PetCompanion() {
               : breatheVariants.animate
           }
         >
-          {/* Aura ring */}
-          <div className={`lumi-aura ${sleeping ? "lumi-aura--dim" : ""}`} />
+          {/* Aura ring — reflects mood */}
+          <div className={auraClass(mood, sleeping)} />
+
+          {/* Mood badge (subtle indicator, hidden during sleep) */}
+          {!sleeping && (
+            <AnimatePresence mode="wait">
+              <motion.span
+                key={mood}
+                className="lumi-mood-badge"
+                initial={{ opacity: 0, scale: 0.6 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.6 }}
+                transition={{ duration: 0.3 }}
+              >
+                {mood === "happy"       ? "✨"
+                : mood === "excited"    ? "🚀"
+                : mood === "sleepy"     ? "💤"
+                : mood === "curious"    ? "👀"
+                : mood === "celebration"? "🎉"
+                : null}
+              </motion.span>
+            </AnimatePresence>
+          )}
 
           {/* Lumi PNG */}
           <LumiImage animState={animState} />
