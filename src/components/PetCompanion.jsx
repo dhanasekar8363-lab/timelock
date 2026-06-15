@@ -32,6 +32,7 @@ const SPEECH_SHOW_MS   = 5000;  // bubble visible for 5 s
    Sound effects
 ───────────────────────────────────────────── */
 const SOUND_TAP   = "/sounds/lumi-tap.mp3";
+tapSound.volume = 0.25;
 const SOUND_PURR  = "/sounds/lumi-purr.mp3";
 const SOUND_SPARK = "/sounds/lumi-spark.mp3";
 const SPARK_SOUND_CHANCE = 0.3; // 30% chance to also play the spark sound on tap
@@ -271,10 +272,6 @@ export default function PetCompanion() {
     tapSoundRef.current   = new Audio(SOUND_TAP);
     purrSoundRef.current  = new Audio(SOUND_PURR);
     sparkSoundRef.current = new Audio(SOUND_SPARK);
-
-    tapSoundRef.current.volume   = 0.25;
-    purrSoundRef.current.volume  = 0.4;
-    sparkSoundRef.current.volume = 0.35;
   }, []);
 
   /* ─────────────────────────────────────────
@@ -729,7 +726,7 @@ export default function PetCompanion() {
             exit={{ opacity: 0, scale: 0.5 }}
             transition={{ duration: 0.4 }}
           >
-            😴
+            
           </motion.div>
         )}
       </AnimatePresence>
