@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useRef, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import { getPetProfile, createPetProfile, updatePetProfile } from "../services/petService";
+import { supabase } from "../services/supabase";
 
 /* ══════════════════════════════════════════
    PetContext — drives Lumi's reactive events + mood system
@@ -386,6 +387,16 @@ export function PetProvider({ children }) {
     };
 
     (async () => {
+      console.log("[PET] user.id =", user?.id);
+
+      const { data: sessionData } = await supabase.auth.getSession();
+
+      console.log(
+        "[PET] session exists?",
+        !!sessionData?.session,
+        sessionData?.session?.user?.id
+      );
+
       const { data, error } = await getPetProfile(user.id);
 
       if (cancelled) return;
