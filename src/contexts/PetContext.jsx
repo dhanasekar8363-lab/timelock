@@ -1,4 +1,6 @@
 import { createContext, useContext, useState, useCallback, useRef, useEffect } from "react";
+import { useAuth } from "./AuthContext";
+import { getPetProfile, createPetProfile, updatePetProfile } from "../services/petService";
 
 /* ══════════════════════════════════════════
    PetContext — drives Lumi's reactive events + mood system
@@ -97,10 +99,58 @@ export const MOODS = {
   },
 };
 
-const XP_STORAGE_KEY           = "lumi_pet_xp";
-const SEEN_LEVELS_STORAGE_KEY  = "lumi_seen_levels";
-const COOLDOWNS_STORAGE_KEY    = "lumi_cooldowns";
-const UNLOCK_REWARD_EVENT_KEY  = "lumi_unlock_reward_event";
+const XP_STORAGE_KEY               = "lumi_pet_xp";
+const HAPPINESS_STORAGE_KEY        = "lumi_pet_happiness";
+const MOOD_STORAGE_KEY             = "lumi_pet_mood";
+const FEED_COUNT_STORAGE_KEY       = "lumi_feed_count";
+const GIFT_COUNT_STORAGE_KEY       = "lumi_gift_count";
+const INTERACTION_COUNT_STORAGE_KEY = "lumi_interaction_count";
+const SEEN_LEVELS_STORAGE_KEY      = "lumi_seen_levels";
+const COOLDOWNS_STORAGE_KEY        = "lumi_cooldowns";
+const UNLOCK_REWARD_EVENT_KEY      = "lumi_unlock_reward_event";
+const MIGRATION_COMPLETE_KEY       = "lumi_supabase_migration_complete";
+
+const DEFAULT_HAPPINESS = 100;
+
+/* ─────────────────────────────────────────────
+   Small localStorage read helpers (used only as a
+   fallback while Supabase is the source of truth).
+───────────────────────────────────────────── */
+function readNumberFromStorage(key, fallback) {
+  try {
+    const stored = localStorage.getItem(key);
+    return stored !== null ? Number(stored) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function readStringFromStorage(key, fallback) {
+  try {
+    const stored = localStorage.getItem(key);
+    return stored !== null ? stored : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Reads every locally-stored pet stat at once. Used to seed a brand-new
+ * Supabase profile the first time a user logs in (migration from
+ * localStorage-only storage to Supabase-backed storage).
+ */
+function readPetDataFromLocalStorage() {
+  const mood = readStringFromStorage(MOOD_STORAGE_KEY, "happy");
+
+  return {
+    petXP:            readNumberFromStorage(XP_STORAGE_KEY, 0),
+    happiness:        readNumberFromStorage(HAPPINESS_STORAGE_KEY, DEFAULT_HAPPINESS),
+    mood:             MOODS[mood] ? mood : "happy",
+    feedCount:        readNumberFromStorage(FEED_COUNT_STORAGE_KEY, 0),
+    giftCount:        readNumberFromStorage(GIFT_COUNT_STORAGE_KEY, 0),
+    interactionCount: readNumberFromStorage(INTERACTION_COUNT_STORAGE_KEY, 0),
+  };
+}
 
 /* ══════════════════════════════════════════
    Food & Gift cooldown durations (minutes)
@@ -172,22 +222,46 @@ export function getNextLevelXP(xp) {
 }
 
 export function PetProvider({ children }) {
+  const { user } = useAuth();
+
   const [activeEvent, setActiveEvent]   = useState(null);
-  const [mood, setMood]                 = useState("happy");
-  const [petXP, setPetXP]              = useState(() => {
-    try {
-      const stored = localStorage.getItem(XP_STORAGE_KEY);
-      return stored !== null ? Number(stored) : 0;
-    } catch {
-      return 0;
-    }
-  });
+
+  // ── Profile fields (now backed by Supabase, localStorage = fallback) ──
+  const [mood, setMood] = useState(() =>
+    readStringFromStorage(MOOD_STORAGE_KEY, "happy")
+  );
+  const [petXP, setPetXP] = useState(() =>
+    readNumberFromStorage(XP_STORAGE_KEY, 0)
+  );
+  const [happiness, setHappiness] = useState(() =>
+    readNumberFromStorage(HAPPINESS_STORAGE_KEY, DEFAULT_HAPPINESS)
+  );
+  const [feedCount, setFeedCount] = useState(() =>
+    readNumberFromStorage(FEED_COUNT_STORAGE_KEY, 0)
+  );
+  const [giftCount, setGiftCount] = useState(() =>
+    readNumberFromStorage(GIFT_COUNT_STORAGE_KEY, 0)
+  );
+  const [interactionCount, setInteractionCount] = useState(() =>
+    readNumberFromStorage(INTERACTION_COUNT_STORAGE_KEY, 0)
+  );
+
+  // True once we've attempted to load/create the Supabase profile for the
+  // current user. Prevents the sync effect from firing (and overwriting the
+  // freshly-loaded row) before the initial load has completed.
+  const [petProfileLoaded, setPetProfileLoaded] = useState(false);
+  const profileLoadedForUserRef = useRef(null);
+
+  // True if this session migrated existing localStorage pet data into a
+  // brand-new Supabase profile (first login on this device for this user).
+  const [petDataMigrated, setPetDataMigrated] = useState(false);
+
   // { level: number } when a level-up just occurred; null otherwise
   const [levelUpReward, setLevelUpReward] = useState(null);
 
   const eventIdRef          = useRef(0);
   const celebrationTimerRef = useRef(null);
-  const prevMoodRef         = useRef("happy");
+  const prevMoodRef         = useRef(mood);
 
   /**
    * Tracks which levels have already fired the level-up reward so it fires
@@ -275,8 +349,113 @@ export function PetProvider({ children }) {
     return getRemainingCooldown(itemId) > 0;
   }, [getRemainingCooldown]);
 
+  /* ══════════════════════════════════════════
+     Supabase profile loading (on login)
+     ──────────────────────────────────────────
+     1. Get current user (from AuthContext).
+     2. Load pet profile from Supabase.
+     3. If no profile exists, create one — seeded with whatever values
+        we currently have (e.g. carried over from localStorage / defaults).
+     localStorage values above are used as the *initial* state and as a
+     fallback if the user is logged out or the Supabase call fails.
+  ══════════════════════════════════════════ */
+  useEffect(() => {
+    if (!user?.id) {
+      // No logged-in user — fall back to whatever is in localStorage.
+      profileLoadedForUserRef.current = null;
+      setPetProfileLoaded(false);
+      return;
+    }
 
-  // Persist XP to localStorage whenever it changes
+    // Avoid re-running the load for the same user (e.g. on re-renders).
+    if (profileLoadedForUserRef.current === user.id) return;
+
+    let cancelled = false;
+
+    const applyProfile = (profile) => {
+      if (!profile || cancelled) return;
+      if (typeof profile.pet_xp === "number") setPetXP(profile.pet_xp);
+      if (typeof profile.happiness === "number") setHappiness(profile.happiness);
+      if (typeof profile.mood === "string" && MOODS[profile.mood]) {
+        prevMoodRef.current = profile.mood;
+        setMood(profile.mood);
+      }
+      if (typeof profile.feed_count === "number") setFeedCount(profile.feed_count);
+      if (typeof profile.gift_count === "number") setGiftCount(profile.gift_count);
+      if (typeof profile.interaction_count === "number") setInteractionCount(profile.interaction_count);
+    };
+
+    (async () => {
+      const { data, error } = await getPetProfile(user.id);
+
+      if (cancelled) return;
+
+      if (error) {
+        console.error("[PetContext] Failed to load pet profile from Supabase, using localStorage fallback.", error);
+        // Don't mark as loaded for this user — we'll retry on next mount/user change,
+        // and in the meantime the sync effect stays disabled so we don't clobber
+        // a row we couldn't read.
+        return;
+      }
+
+      if (!data) {
+        // No profile yet for this user — first login on Supabase.
+        //
+        // ── Migration step ────────────────────────────────────────────
+        // Read whatever pet data already exists in localStorage (from
+        // earlier localStorage-only usage) and use it to seed the new
+        // Supabase row. localStorage itself is left untouched so it
+        // continues to work as the offline fallback.
+        const localData = readPetDataFromLocalStorage();
+
+        const { data: created, error: createError } = await createPetProfile(user.id, {
+          pet_xp: localData.petXP,
+          happiness: localData.happiness,
+          mood: localData.mood,
+          feed_count: localData.feedCount,
+          gift_count: localData.giftCount,
+          interaction_count: localData.interactionCount,
+        });
+
+        if (cancelled) return;
+
+        if (createError) {
+          console.error("[PetContext] Failed to create pet profile in Supabase, using localStorage fallback.", createError);
+          return;
+        }
+
+        applyProfile(created);
+
+        // Mark the migration as complete for this device/browser. We do
+        // NOT delete the original localStorage values — they remain as a
+        // fallback (e.g. if the user is briefly offline or logged out).
+        try {
+          localStorage.setItem(MIGRATION_COMPLETE_KEY, "true");
+        } catch {
+          console.warn("[PetContext] Could not persist migration-complete flag.");
+        }
+
+        setPetDataMigrated(true);
+        console.info("[PetContext] Migrated local pet data to new Supabase profile for user", user.id);
+      } else {
+        applyProfile(data);
+      }
+
+      profileLoadedForUserRef.current = user.id;
+      setPetProfileLoaded(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally only re-run when the user identity changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  /* ══════════════════════════════════════════
+     Persist to localStorage (fallback store)
+     — kept for offline / logged-out support.
+  ══════════════════════════════════════════ */
   useEffect(() => {
     try {
       localStorage.setItem(XP_STORAGE_KEY, String(petXP));
@@ -285,8 +464,83 @@ export function PetProvider({ children }) {
     }
   }, [petXP]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(HAPPINESS_STORAGE_KEY, String(happiness));
+    } catch {
+      console.warn("[PetContext] Could not save happiness to localStorage.");
+    }
+  }, [happiness]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MOOD_STORAGE_KEY, mood);
+    } catch {
+      console.warn("[PetContext] Could not save mood to localStorage.");
+    }
+  }, [mood]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(FEED_COUNT_STORAGE_KEY, String(feedCount));
+    } catch {
+      console.warn("[PetContext] Could not save feed count to localStorage.");
+    }
+  }, [feedCount]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(GIFT_COUNT_STORAGE_KEY, String(giftCount));
+    } catch {
+      console.warn("[PetContext] Could not save gift count to localStorage.");
+    }
+  }, [giftCount]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(INTERACTION_COUNT_STORAGE_KEY, String(interactionCount));
+    } catch {
+      console.warn("[PetContext] Could not save interaction count to localStorage.");
+    }
+  }, [interactionCount]);
+
+  /* ══════════════════════════════════════════
+     Sync profile fields back to Supabase
+     ──────────────────────────────────────────
+     Debounced so rapid successive changes (e.g. addXP + mood change)
+     collapse into a single update. Only runs once the initial
+     Supabase load/create for the current user has completed.
+  ══════════════════════════════════════════ */
+  const syncTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    if (!user?.id || !petProfileLoaded) return;
+
+    clearTimeout(syncTimeoutRef.current);
+    syncTimeoutRef.current = setTimeout(() => {
+      updatePetProfile(user.id, {
+        pet_xp: petXP,
+        happiness,
+        mood,
+        feed_count: feedCount,
+        gift_count: giftCount,
+        interaction_count: interactionCount,
+      }).then(({ error }) => {
+        if (error) {
+          console.error("[PetContext] Failed to sync pet profile to Supabase.", error);
+        }
+      });
+    }, 800);
+
+    return () => clearTimeout(syncTimeoutRef.current);
+  }, [user?.id, petProfileLoaded, petXP, happiness, mood, feedCount, giftCount, interactionCount]);
+
   const clearLevelUpReward = useCallback(() => {
     setLevelUpReward(null);
+  }, []);
+
+  const clearPetDataMigrated = useCallback(() => {
+    setPetDataMigrated(false);
   }, []);
 
   const addXP = useCallback((amount) => {
@@ -321,6 +575,32 @@ export function PetProvider({ children }) {
 
       return next;
     });
+  }, []);
+
+  /* ─────────────────────────────────────────
+     Happiness / feed / gift / interaction helpers
+     - These are the new fields now tracked alongside petXP & mood,
+       and are loaded from / synced to Supabase like the rest of
+       the profile above.
+  ───────────────────────────────────────── */
+  const adjustHappiness = useCallback((delta) => {
+    if (typeof delta !== "number") {
+      console.warn(`[PetContext] adjustHappiness expects a number, got: ${delta}`);
+      return;
+    }
+    setHappiness((prev) => Math.max(0, Math.min(100, prev + delta)));
+  }, []);
+
+  const incrementFeedCount = useCallback((amount = 1) => {
+    setFeedCount((prev) => prev + amount);
+  }, []);
+
+  const incrementGiftCount = useCallback((amount = 1) => {
+    setGiftCount((prev) => prev + amount);
+  }, []);
+
+  const incrementInteractionCount = useCallback((amount = 1) => {
+    setInteractionCount((prev) => prev + amount);
   }, []);
 
   const triggerPetEvent = useCallback((type) => {
@@ -422,6 +702,17 @@ export function PetProvider({ children }) {
         triggerCelebration,
         petXP,
         addXP,
+        happiness,
+        adjustHappiness,
+        feedCount,
+        incrementFeedCount,
+        giftCount,
+        incrementGiftCount,
+        interactionCount,
+        incrementInteractionCount,
+        petProfileLoaded,
+        petDataMigrated,
+        clearPetDataMigrated,
         levelUpReward,
         clearLevelUpReward,
         startCooldown,
