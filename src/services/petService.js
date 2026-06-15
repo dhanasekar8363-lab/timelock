@@ -81,32 +81,6 @@ export const createPetProfile = async (userId, profileData = {}) => {
  * @param {object} updates - Columns to update (e.g. { name: 'Buddy', breed: 'Labrador' }).
  * @returns {{ data: object|null, error: object|null }}
  */
-/**
- * Persist the full cooldowns map for a user.
- * Called immediately when any cooldown starts so other devices see it right away.
- *
- * @param {string} userId    - The auth user's UUID.
- * @param {object} cooldowns - { [itemId]: endTimestampMs }
- * @returns {{ error: object|null }}
- */
-export const updateCooldowns = async (userId, cooldowns = {}) => {
-  try {
-    const { error } = await supabase
-      .from('pet_profiles')
-      .update({
-        cooldowns,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('user_id', userId)
-
-    if (error) throw error
-    return { error: null }
-  } catch (error) {
-    console.error('[updateCooldowns]', error)
-    return { error }
-  }
-}
-
 export const updatePetProfile = async (userId, updates = {}) => {
   try {
     const { data, error } = await supabase

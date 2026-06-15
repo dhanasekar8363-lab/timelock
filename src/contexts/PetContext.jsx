@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useRef, useEffect } from "react";
 import { useAuth } from "./AuthContext";
-import { getPetProfile, createPetProfile, updatePetProfile, updateCooldowns } from "../services/petService";
+import { getPetProfile, createPetProfile, updatePetProfile } from "../services/petService";
 import { supabase } from "../services/supabase";
 
 /* ══════════════════════════════════════════
@@ -264,13 +264,6 @@ export function PetProvider({ children }) {
   const celebrationTimerRef = useRef(null);
   const prevMoodRef         = useRef(mood);
 
-  // Always-current user id ref — lets cooldown callbacks reach the current user
-  // without needing user in their dependency arrays.
-  const userIdRef = useRef(user?.id ?? null);
-  useEffect(() => {
-    userIdRef.current = user?.id ?? null;
-  }, [user?.id]);
-
   /**
    * Tracks which levels have already fired the level-up reward so it fires
    * exactly once per level, permanently, even across page reloads.
@@ -327,20 +320,7 @@ export function PetProvider({ children }) {
     }
     const endTimestamp = Date.now() + durationMinutes * 60 * 1000;
     cooldownsRef.current = { ...cooldownsRef.current, [itemId]: endTimestamp };
-
-    // 1. Keep localStorage in sync (offline fallback)
     persistCooldowns();
-
-    // 2. Save to Supabase immediately so other devices see the cooldown right away.
-    //    Fire-and-forget — UI is already updated optimistically via the ref.
-    const uid = userIdRef.current;
-    if (uid) {
-      updateCooldowns(uid, cooldownsRef.current).then(({ error }) => {
-        if (error) {
-          console.error("[PetContext] Failed to sync cooldown to Supabase.", error);
-        }
-      });
-    }
   }, [persistCooldowns]);
 
   /**
@@ -404,23 +384,6 @@ export function PetProvider({ children }) {
       if (typeof profile.feed_count === "number") setFeedCount(profile.feed_count);
       if (typeof profile.gift_count === "number") setGiftCount(profile.gift_count);
       if (typeof profile.interaction_count === "number") setInteractionCount(profile.interaction_count);
-
-      // ── Cooldowns: prefer Supabase over localStorage ──────────────────
-      // profile.cooldowns may be null (old rows before migration) or an object.
-      if (profile.cooldowns && typeof profile.cooldowns === "object") {
-        const now = Date.now();
-        // Strip already-expired entries so we don't carry stale timestamps
-        const fresh = Object.fromEntries(
-          Object.entries(profile.cooldowns).filter(([, end]) => end > now)
-        );
-        cooldownsRef.current = fresh;
-        // Mirror into localStorage so offline sessions stay in sync
-        try {
-          localStorage.setItem(COOLDOWNS_STORAGE_KEY, JSON.stringify(fresh));
-        } catch {
-          console.warn("[PetContext] Could not mirror Supabase cooldowns to localStorage.");
-        }
-      }
     };
 
     (async () => {
