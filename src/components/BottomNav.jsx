@@ -3,11 +3,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import "./BottomNav.css";
 
-// XP amounts granted per reward type
-const REWARD_XP = {
-  capsule_created: 70,
-  capsule_unlocked: 140,
-};
+// Supported reward event types (no hardcoded XP — values come from the event)
+const SUPPORTED_REWARD_TYPES = new Set(["capsule_created", "capsule_unlocked"]);
 
 // Unique key we write & clear in localStorage
 const REWARD_KEY = "pet_xp_reward";
@@ -68,15 +65,17 @@ function BottomNav() {
       if (!raw) return;
 
       const event = JSON.parse(raw);
-      const { type, id } = event ?? {};
+      const { type, id, rewardXP, timestamp } = event ?? {};
 
-      // Deduplicate by event id (caller must supply one)
-      const dedupKey = id ?? raw;
+      // Deduplicate: prefer explicit id, fall back to timestamp, then raw string
+      const dedupKey = id ?? timestamp ?? raw;
       if (seenRef.current.has(dedupKey)) return;
       seenRef.current.add(dedupKey);
 
-      const xp = REWARD_XP[type];
-      if (!xp) return;
+      // Only handle supported types; read XP from the event itself
+      if (!SUPPORTED_REWARD_TYPES.has(type)) return;
+      const xp = rewardXP;
+      if (!xp || xp <= 0) return;
 
       // Remove from localStorage immediately so other tabs don't re-fire
       localStorage.removeItem(REWARD_KEY);
