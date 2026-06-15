@@ -288,6 +288,8 @@ export default function PetCompanion() {
     clearPetEvent,
     mood,
     setMoodForPage,
+    levelUpReward,
+    clearLevelUpReward,
   } = usePet();
 
   /* ── Long-press timers ── */
@@ -670,8 +672,40 @@ export default function PetCompanion() {
   }, [activeEvent, resetSleepTimer, clearPetEvent]);
 
   /* ─────────────────────────────────────────
-     Hide / show
+     Level-up reward — fires once per new level
+     · Celebration animation on Lumi
+     · Dense sparkle burst particles
+     · lumi-spark.mp3
+     · "Lumi reached Level X!" tooltip
   ───────────────────────────────────────── */
+  useEffect(() => {
+    if (!levelUpReward) return;
+    const { level } = levelUpReward;
+
+    resetSleepTimer();
+
+    // Play lumi-spark.mp3
+    playSound(sparkSoundRef);
+
+    // Celebration animation
+    setAnimState("tap");
+    setTimeout(() => setAnimState("idle"), 600);
+
+    // Rich sparkle burst — stars + colour particles + confetti
+    setParticles([...makeStars(10), ...makeBurst(10)]);
+    setConfetti(makeConfetti(28));
+
+    // "Lumi reached Level X!" tooltip
+    clearTimeout(tooltipTimer.current);
+    const msg = `✨ Lumi reached Level ${level}!`;
+    setTooltip(msg);
+    tooltipTimer.current = setTimeout(() => {
+      setTooltip(null);
+      clearLevelUpReward();
+    }, 5000);
+
+    return () => clearTimeout(tooltipTimer.current);
+  }, [levelUpReward, resetSleepTimer, playSound, clearLevelUpReward]);
   const toggleHidden = useCallback((val) => {
     const next = val ?? !hidden;
     setHidden(next);

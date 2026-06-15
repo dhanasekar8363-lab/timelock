@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import lumi from "../assets/lumi.png";
-import { usePet, MOODS } from "../contexts/PetContext";
+import { usePet, MOODS, getLevel, getCurrentLevelXP, getNextLevelXP } from "../contexts/PetContext";
 import "./PetPage.css";
 
 /* ─────────────────────────────────────────────
@@ -44,6 +44,75 @@ function saveData(data) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (_) {}
 }
 
+/* ─────────────────────────────────────────────
+   Food types for the Feed Lumi system
+───────────────────────────────────────────── */
+const FOOD_TYPES = [
+  {
+    id:         "snack",
+    emoji:      "🍗",
+    name:       "Snack",
+    xp:         5,
+    happiness:  2,
+    desc:       "A little nibble",
+    rarity:     "common",
+  },
+  {
+    id:         "fish",
+    emoji:      "🐟",
+    name:       "Fish",
+    xp:         15,
+    happiness:  5,
+    desc:       "Lumi's favourite",
+    rarity:     "rare",
+  },
+  {
+    id:         "premiumMeal",
+    emoji:      "🍖",
+    name:       "Premium Meal",
+    xp:         30,
+    happiness:  10,
+    desc:       "A cosmic feast",
+    rarity:     "legendary",
+  },
+];
+
+/* ─────────────────────────────────────────────
+   Gift types for the Gift Lumi system
+───────────────────────────────────────────── */
+const GIFT_TYPES = [
+  {
+    id:        "toy",
+    emoji:     "🧶",
+    name:      "Toy",
+    xp:        20,
+    happiness: 8,
+    desc:      "A fun little toy",
+    rarity:    "common",
+    message:   "Lumi is playing with the toy! 🧶",
+  },
+  {
+    id:        "crystal",
+    emoji:     "💎",
+    name:      "Crystal",
+    xp:        40,
+    happiness: 15,
+    desc:      "Glows with cosmic energy",
+    rarity:    "rare",
+    message:   "Lumi loves the crystal! 💎",
+  },
+  {
+    id:        "cosmicStar",
+    emoji:     "🌟",
+    name:      "Cosmic Star",
+    xp:        75,
+    happiness: 25,
+    desc:      "A gift from the cosmos",
+    rarity:    "legendary",
+    message:   "Lumi is over the moon! 🌟",
+  },
+];
+
 const MOOD_EMOJI = {
   happy:       "😊",
   excited:     "🚀",
@@ -78,7 +147,7 @@ function getMilestones(level) {
 
 /* Circular progress SVG */
 function CircleProgress({ pct }) {
-  const r   = 44;
+  const r    = 44;
   const circ = 2 * Math.PI * r;
   const dash = circ * (pct / 100);
 
@@ -97,17 +166,176 @@ function CircleProgress({ pct }) {
 }
 
 /* ─────────────────────────────────────────────
+   Feed Menu — bottom-sheet food picker
+───────────────────────────────────────────── */
+function FeedMenu({ onSelect, onClose }) {
+  return (
+    <div
+      className="pet-feed-overlay"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Choose food for Lumi"
+    >
+      <div className="pet-feed-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="pet-feed-sheet-handle" aria-hidden="true" />
+        <p className="pet-feed-sheet-eyebrow">Time to eat! 🐱</p>
+        <h2 className="pet-feed-title">What should Lumi eat?</h2>
+
+        <div className="pet-food-grid">
+          {FOOD_TYPES.map((food) => (
+            <button
+              key={food.id}
+              className={`pet-food-btn pet-food-btn--${food.rarity}`}
+              onClick={() => onSelect(food)}
+            >
+              <span className="pet-food-emoji" aria-hidden="true">{food.emoji}</span>
+              <span className="pet-food-name">{food.name}</span>
+              <span className="pet-food-desc">{food.desc}</span>
+              <span className="pet-food-xp-badge">+{food.xp} XP</span>
+              <span className="pet-food-happiness">+{food.happiness} 💜</span>
+            </button>
+          ))}
+        </div>
+
+        <button className="pet-feed-cancel-btn" onClick={onClose}>
+          Maybe later
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   Gift Menu — bottom-sheet gift picker
+───────────────────────────────────────────── */
+function GiftMenu({ onSelect, onClose }) {
+  return (
+    <div
+      className="pet-feed-overlay"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Choose a gift for Lumi"
+    >
+      <div className="pet-feed-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="pet-feed-sheet-handle" aria-hidden="true" />
+        <p className="pet-feed-sheet-eyebrow">Spoil Lumi! 🎁</p>
+        <h2 className="pet-feed-title">Choose a gift for Lumi</h2>
+
+        <div className="pet-food-grid">
+          {GIFT_TYPES.map((gift) => (
+            <button
+              key={gift.id}
+              className={`pet-food-btn pet-food-btn--${gift.rarity}`}
+              onClick={() => onSelect(gift)}
+            >
+              <span className="pet-food-emoji" aria-hidden="true">{gift.emoji}</span>
+              <span className="pet-food-name">{gift.name}</span>
+              <span className="pet-food-desc">{gift.desc}</span>
+              <span className="pet-food-xp-badge">+{gift.xp} XP</span>
+              <span className="pet-food-happiness">+{gift.happiness} 💜</span>
+            </button>
+          ))}
+        </div>
+
+        <button className="pet-feed-cancel-btn" onClick={onClose}>
+          Maybe later
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   Gift Opening Modal — 3-stage animation
+   shake (1.4 s) → open (0.8 s) → reveal
+───────────────────────────────────────────── */
+function GiftOpeningModal({ gift, onCollect }) {
+  const [stage, setStage] = useState("shake");
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setStage("open"),   1400);
+    const t2 = setTimeout(() => setStage("reveal"), 2300);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+
+  const SPARKLES = ["✨", "⭐", "💫", "🌟", "✨", "💜", "⭐", "💫"];
+
+  return (
+    <div className="pet-gift-overlay" role="dialog" aria-modal="true" aria-label="Gift opening">
+      <div className="pet-gift-modal">
+
+        {/* ── Stage: shake / open ── */}
+        {stage !== "reveal" && (
+          <div className="pet-gift-box-scene">
+            <div className={`pet-gift-box-wrap pet-gift-box-wrap--${stage}`}>
+              <span className="pet-gift-box-emoji" aria-hidden="true">
+                {stage === "open" ? "✨" : "🎁"}
+              </span>
+            </div>
+            <p className="pet-gift-stage-label">
+              {stage === "shake" && "Lumi is opening the gift…"}
+            </p>
+            {/* Animated dots */}
+            <div className="pet-gift-dots" aria-hidden="true">
+              <span /><span /><span />
+            </div>
+          </div>
+        )}
+
+        {/* ── Stage: reveal ── */}
+        {stage === "reveal" && (
+          <div className="pet-gift-reveal">
+            {/* Sparkle particles */}
+            <div className="pet-gift-sparkles" aria-hidden="true">
+              {SPARKLES.map((s, i) => (
+                <span key={i} className={`pet-gift-sparkle pet-gift-sparkle--${i}`}>{s}</span>
+              ))}
+            </div>
+
+            <div className="pet-gift-reveal-emoji">{gift.emoji}</div>
+            <p className="pet-gift-reveal-eyebrow">Lumi received a gift!</p>
+            <h2 className="pet-gift-reveal-name">{gift.name}</h2>
+            <p className="pet-gift-reveal-desc">{gift.desc}</p>
+
+            <div className="pet-gift-reward-row">
+              <div className="pet-gift-reward-pill pet-gift-reward-pill--xp">
+                +{gift.xp} XP
+              </div>
+              <div className="pet-gift-reward-pill pet-gift-reward-pill--happiness">
+                +{gift.happiness} 💜
+              </div>
+            </div>
+
+            <button className="pet-gift-collect-btn" onClick={onCollect}>
+              Collect! 🎉
+            </button>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
    Main component
 ───────────────────────────────────────────── */
 export default function PetPage() {
   const navigate  = useNavigate();
-  const { mood }  = usePet();
+  const { mood, petXP, addXP, triggerCelebration, setMoodForPage } = usePet();
 
-  const [data, setData]           = useState(loadData);
-  const [giftClaimed, setGiftClaimed] = useState(false);
-  const [feedFlash,   setFeedFlash]   = useState(false);
-  const [giftFlash,   setGiftFlash]   = useState(false);
-  const [showXpToast, setShowXpToast] = useState(null); // "+N XP"
+  const [data, setData]                 = useState(loadData);
+  const [giftClaimed, setGiftClaimed]   = useState(false);
+  const [feedFlash,   setFeedFlash]     = useState(false);
+  const [giftFlash,   setGiftFlash]     = useState(false);
+  const [showXpToast, setShowXpToast]   = useState(null);   // "+N XP"
+  const [showFeedMenu, setShowFeedMenu] = useState(false);  // food picker open?
+  const [feedSuccess,  setFeedSuccess]  = useState(null);   // { emoji, name, xp }
+  const [showGiftMenu, setShowGiftMenu] = useState(false);  // gift picker open?
+  const [giftOpening,  setGiftOpening]  = useState(null);   // gift being opened
+  const [giftSuccess,  setGiftSuccess]  = useState(null);   // post-collect toast
 
   /* Check if daily gift already claimed today */
   useEffect(() => {
@@ -121,58 +349,124 @@ export default function PetPage() {
     } catch (_) {}
   }, []);
 
-  const awardXP = useCallback((amount, label) => {
+  /* Set page mood on mount */
+  useEffect(() => {
+    setMoodForPage("happy");
+  }, [setMoodForPage]);
+
+  const awardXP = useCallback((amount) => {
+    // 1. Update canonical PetContext XP — drives hero level + progress bar
+    addXP(amount);
+
+    // 2. Keep local `data` state in sync for stats display
     setData((prev) => {
-      let xp    = prev.xp + amount;
-      let level = prev.level;
+      let xp        = prev.xp + amount;
+      let level     = prev.level;
       let xpForNext = prev.xpForNext;
 
       while (xp >= xpForNext) {
-        xp       -= xpForNext;
-        level    += 1;
-        xpForNext = Math.round(xpForNext * 1.35);
+        xp        -= xpForNext;
+        level     += 1;
+        xpForNext  = Math.round(xpForNext * 1.35);
       }
       const next = { ...prev, xp, level, xpForNext };
       saveData(next);
       return next;
     });
+
     setShowXpToast(`+${amount} XP`);
     setTimeout(() => setShowXpToast(null), 1800);
-  }, []);
+  }, [addXP]);
 
-  /* Feed Lumi */
-  const handleFeed = useCallback(() => {
+  /* ── Feed Lumi ──────────────────────────────
+     Opens the food picker; actual feeding happens
+     in handleFoodSelect once the player picks a food.
+  ─────────────────────────────────────────── */
+  const handleFoodSelect = useCallback((food) => {
+    setShowFeedMenu(false);
+
+    // Flash animation on the action card
     setFeedFlash(true);
     setTimeout(() => setFeedFlash(false), 600);
+
+    // Update stats + persist (happiness capped at 100)
     setData((prev) => {
+      const newEntry = {
+        id:    Date.now(),
+        icon:  food.emoji,
+        label: `You fed Lumi ${food.name}`,
+        xp:    food.xp,
+        time:  "Just now",
+      };
       const next = {
         ...prev,
-        feedCount:    prev.feedCount + 1,
-        interactions: prev.interactions + 1,
-        happiness:    Math.min(100, prev.happiness + 3),
+        feedCount:      prev.feedCount + 1,
+        interactions:   prev.interactions + 1,
+        happiness:      Math.min(100, prev.happiness + food.happiness),
+        recentActivity: [newEntry, ...prev.recentActivity].slice(0, 10),
       };
       saveData(next);
       return next;
     });
-    awardXP(20, "Fed Lumi");
-  }, [awardXP]);
 
-  /* Gift Lumi */
-  const handleGift = useCallback(() => {
+    // Award XP to both local state and PetContext (updates level + progress bar)
+    awardXP(food.xp);
+
+    // Trigger celebration mood on Lumi
+    triggerCelebration();
+
+    // Success message (stays 2.5 s)
+    setFeedSuccess(food);
+    setTimeout(() => setFeedSuccess(null), 2500);
+  }, [awardXP, triggerCelebration]);
+
+  /* ── Gift Lumi ─────────────────────────────
+     1. User picks a gift  → opens the opening animation
+     2. Animation completes → user taps Collect
+     3. Stats saved to localStorage
+  ─────────────────────────────────────────── */
+  const handleGiftSelect = useCallback((gift) => {
+    setShowGiftMenu(false);
     setGiftFlash(true);
     setTimeout(() => setGiftFlash(false), 600);
+    // Store the chosen gift; modal will call handleGiftCollect
+    setGiftOpening(gift);
+  }, []);
+
+  const handleGiftCollect = useCallback(() => {
+    const gift = giftOpening;
+    if (!gift) return;
+    setGiftOpening(null);
+
+    // Update stats + persist
     setData((prev) => {
+      const newEntry = {
+        id:    Date.now(),
+        icon:  gift.emoji,
+        label: `You gifted Lumi ${gift.name}`,
+        xp:    gift.xp,
+        time:  "Just now",
+      };
       const next = {
         ...prev,
-        giftCount:    prev.giftCount + 1,
-        interactions: prev.interactions + 1,
-        happiness:    Math.min(100, prev.happiness + 5),
+        giftCount:      prev.giftCount + 1,
+        interactions:   prev.interactions + 1,
+        happiness:      Math.min(100, prev.happiness + gift.happiness),
+        recentActivity: [newEntry, ...prev.recentActivity].slice(0, 10),
       };
       saveData(next);
       return next;
     });
-    awardXP(30, "Gifted Lumi");
-  }, [awardXP]);
+
+    awardXP(gift.xp);
+
+    // Trigger celebration mood on Lumi
+    triggerCelebration();
+
+    // Success toast (2.5 s)
+    setGiftSuccess(gift);
+    setTimeout(() => setGiftSuccess(null), 2500);
+  }, [giftOpening, awardXP, triggerCelebration]);
 
   /* Claim daily gift */
   const handleClaimGift = useCallback(() => {
@@ -189,20 +483,72 @@ export default function PetPage() {
       saveData(next);
       return next;
     });
-    awardXP(50, "Daily gift");
+    awardXP(50);
   }, [giftClaimed, awardXP]);
 
-  const milestones = getMilestones(data.level);
-  const xpPct      = Math.round((data.xp / data.xpForNext) * 100);
-  const moodLabel  = MOOD_LABEL[mood]  ?? "Happy";
-  const moodEmoji  = MOOD_EMOJI[mood]  ?? "😊";
-  const moodDesc   = MOOD_DESC[mood]   ?? "Lumi is feeling great today!";
+  const milestones    = getMilestones(data.level);
+  const xpPct         = Math.round((data.xp / data.xpForNext) * 100);
+  const moodLabel     = MOOD_LABEL[mood]  ?? "Happy";
+  const moodEmoji     = MOOD_EMOJI[mood]  ?? "😊";
+  const moodDesc      = MOOD_DESC[mood]   ?? "Lumi is feeling great today!";
+
+  // Derive level info from the canonical petXP stored in PetContext
+  const lumiLevel     = getLevel(petXP);
+  const lumiCurrentXP = getCurrentLevelXP(petXP);
+  const lumiNextXP    = getNextLevelXP(petXP);
+  const lumiXpPct     = lumiNextXP > 0 ? Math.min(100, Math.round((lumiCurrentXP / lumiNextXP) * 100)) : 100;
+  const lumiXpToNext  = lumiNextXP - lumiCurrentXP;
 
   return (
     <div className="pet-page">
+
+      {/* ── Gift picker overlay ── */}
+      {showGiftMenu && (
+        <GiftMenu
+          onSelect={handleGiftSelect}
+          onClose={() => setShowGiftMenu(false)}
+        />
+      )}
+
+      {/* ── Gift opening animation ── */}
+      {giftOpening && (
+        <GiftOpeningModal
+          gift={giftOpening}
+          onCollect={handleGiftCollect}
+        />
+      )}
+
+      {/* ── Gift success toast ── */}
+      {giftSuccess && (
+        <div className="pet-feed-success-toast pet-gift-success-toast" aria-live="polite">
+          <span className="pet-feed-success-emoji">{giftSuccess.emoji}</span>
+          <span className="pet-feed-success-text">
+            {giftSuccess.message}
+          </span>
+        </div>
+      )}
+
+      {/* ── Food picker overlay ── */}
+      {showFeedMenu && (
+        <FeedMenu
+          onSelect={handleFoodSelect}
+          onClose={() => setShowFeedMenu(false)}
+        />
+      )}
+
       {/* ── XP toast ── */}
       {showXpToast && (
         <div className="pet-xp-toast" aria-live="polite">{showXpToast}</div>
+      )}
+
+      {/* ── Feed success toast ── */}
+      {feedSuccess && (
+        <div className="pet-feed-success-toast" aria-live="polite">
+          <span className="pet-feed-success-emoji">{feedSuccess.emoji}</span>
+          <span className="pet-feed-success-text">
+            Lumi loved the <strong>{feedSuccess.name}</strong>! 😻
+          </span>
+        </div>
       )}
 
       {/* ── Header ── */}
@@ -258,20 +604,23 @@ export default function PetPage() {
             Time Guardian
           </div>
 
-          <p className="pet-level-label">Level {data.level}</p>
+          <p className="pet-level-label">Level {lumiLevel}</p>
 
           <div className="pet-xp-bar-wrap">
             <div className="pet-xp-bar">
               <div
                 className="pet-xp-bar-fill"
-                style={{ width: `${xpPct}%` }}
+                style={{ width: `${lumiXpPct}%` }}
                 role="progressbar"
-                aria-valuenow={data.xp}
-                aria-valuemax={data.xpForNext}
-                aria-label={`${data.xp} of ${data.xpForNext} XP`}
+                aria-valuenow={lumiCurrentXP}
+                aria-valuemax={lumiNextXP}
+                aria-label={`${lumiCurrentXP} of ${lumiNextXP} XP`}
               />
             </div>
-            <span className="pet-xp-text">{data.xp.toLocaleString()} / {data.xpForNext.toLocaleString()} XP</span>
+            <div className="pet-xp-bar-labels">
+              <span className="pet-xp-text">{lumiCurrentXP.toLocaleString()} / {lumiNextXP.toLocaleString()} XP</span>
+              <span className="pet-xp-to-next">{lumiXpToNext.toLocaleString()} XP to next level</span>
+            </div>
           </div>
 
           <p className="pet-hero-desc">
@@ -294,28 +643,31 @@ export default function PetPage() {
 
       {/* ── Action Cards ── */}
       <section className="pet-actions-grid">
+        {/* Feed Lumi — opens the food picker */}
         <button
           className={`pet-action-card pet-action-feed ${feedFlash ? "pet-action-flash" : ""}`}
-          onClick={handleFeed}
+          onClick={() => setShowFeedMenu(true)}
+          aria-haspopup="dialog"
         >
           <div className="pet-action-icon-wrap">
-            <span className="pet-action-icon">🍖</span>
+            <span className="pet-action-icon">🍽️</span>
             {data.feedCount > 0 && <span className="pet-action-badge" />}
           </div>
           <p className="pet-action-label">Feed Lumi</p>
-          <p className="pet-action-sub">Make Lumi happy</p>
+          <p className="pet-action-sub">3 food types</p>
         </button>
 
         <button
           className={`pet-action-card pet-action-gift ${giftFlash ? "pet-action-flash" : ""}`}
-          onClick={handleGift}
+          onClick={() => setShowGiftMenu(true)}
+          aria-haspopup="dialog"
         >
           <div className="pet-action-icon-wrap">
             <span className="pet-action-icon">🎁</span>
             <span className="pet-action-badge" />
           </div>
-          <p className="pet-action-label">Gift</p>
-          <p className="pet-action-sub">Give a surprise</p>
+          <p className="pet-action-label">Gift Lumi</p>
+          <p className="pet-action-sub">3 gift tiers</p>
         </button>
 
         <button
@@ -432,7 +784,7 @@ export default function PetPage() {
               <ul className="pet-bond-stats">
                 {[
                   { icon: "🤝", label: "Interactions", value: `${data.interactions} today` },
-                  { icon: "🍖", label: "Feed",          value: `${data.feedCount} times`   },
+                  { icon: "🍽️", label: "Feed",         value: `${data.feedCount} times`   },
                   { icon: "🎁", label: "Gifts",         value: `${data.giftCount} times`   },
                   { icon: "⏱",  label: "Playtime",      value: `${data.playtimeMin} min`   },
                 ].map((s) => (
