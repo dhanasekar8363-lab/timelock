@@ -153,7 +153,7 @@ export const searchProfiles = async (query, excludeUserId = null, limit = 8) => 
 
     let q = supabase
       .from('profiles')
-      .select('id, username, display_name, avatar_url')
+      .select('id, username, display_name, avatar_url, email')
       .or(`username.ilike.%${safe}%,display_name.ilike.%${safe}%`)
       .limit(limit)
 

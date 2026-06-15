@@ -186,6 +186,7 @@ function ConfettiParticle({ id, onDone }) {
 }
 
 
+function makeBurst(n) {
   return Array.from({ length: n }, (_, i) => ({ id: Date.now() + i, type: "sparkle" }));
 }
 function makeHearts(n) {

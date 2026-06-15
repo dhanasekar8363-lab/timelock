@@ -637,13 +637,15 @@ function CreateCapsule() {
           : null;                                            // email-only recipient
 
     // FIX: receiver_email holds a real email address only.
-    // For a registered TimeLock user, use their stored email (never null).
+    // For a registered TimeLock user, use their stored email.
     // For manual entry, use it only when it looks like an email address.
+    // IMPORTANT: receiver_email is NOT NULL in the DB — always fall back to ""
+    // (empty string) rather than null so the insert never fails the constraint.
     const recipientEmail = selectedUserId
-      ? selectedUserEmail || null          // registered user → their profile email
+      ? selectedUserEmail || ""            // registered user → their profile email, or ""
       : manualReceiverIsEmail
         ? receiverName.trim()              // manual email entry
-        : null;                            // manual name-only entry
+        : "";                              // manual name-only entry → "" not null
     // ──────────────────────────────────────────────────────────────────────────
 
     const payload = {
