@@ -271,6 +271,10 @@ export default function PetCompanion() {
     tapSoundRef.current   = new Audio(SOUND_TAP);
     purrSoundRef.current  = new Audio(SOUND_PURR);
     sparkSoundRef.current = new Audio(SOUND_SPARK);
+
+    tapSoundRef.current.volume   = 0.25;
+    purrSoundRef.current.volume  = 0.4;
+    sparkSoundRef.current.volume = 0.35;
   }, []);
 
   /* ─────────────────────────────────────────
