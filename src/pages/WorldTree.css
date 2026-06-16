@@ -1,0 +1,992 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   WorldTree.css — Fantasy purple glassmorphism, mobile-first
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Root / Background ─────────────────────────────────────────────────── */
+.wt-root {
+  position: relative;
+  min-height: 100dvh;
+  width: 100%;
+  overflow-x: hidden;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  color: #e8d8ff;
+}
+
+.wt-bg {
+  position: fixed;
+  inset: 0;
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-attachment: scroll; /* scroll keeps it correct on mobile */
+  z-index: 0;
+}
+
+/* Dark purple overlay so the stars, glass cards, and text remain legible */
+.wt-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 10%, rgba(26, 10, 58, 0.72) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 80% at 80% 90%, rgba(13, 6, 32, 0.65) 0%, transparent 60%),
+    linear-gradient(160deg, rgba(11, 2, 30, 0.70) 0%, rgba(18, 5, 53, 0.62) 40%, rgba(13, 2, 32, 0.70) 100%);
+}
+
+.wt-bg-stars {
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(1px 1px at 15% 12%, rgba(255,255,255,0.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 72% 8%,  rgba(255,255,255,0.4) 0%, transparent 100%),
+    radial-gradient(1px 1px at 38% 25%, rgba(255,255,255,0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 85% 33%, rgba(255,255,255,0.3) 0%, transparent 100%),
+    radial-gradient(1px 1px at 60% 55%, rgba(255,255,255,0.4) 0%, transparent 100%),
+    radial-gradient(1px 1px at 25% 70%, rgba(255,255,255,0.3) 0%, transparent 100%),
+    radial-gradient(1px 1px at 90% 80%, rgba(255,255,255,0.5) 0%, transparent 100%),
+    radial-gradient(2px 2px at 50% 40%, rgba(200,150,255,0.4) 0%, transparent 100%),
+    radial-gradient(2px 2px at 10% 50%, rgba(200,150,255,0.3) 0%, transparent 100%);
+  z-index: 1;
+  animation: wt-stars-drift 30s linear infinite alternate;
+}
+
+@keyframes wt-stars-drift {
+  from { transform: translateY(0);    opacity: 0.8; }
+  to   { transform: translateY(-6px); opacity: 1;   }
+}
+
+/* ── Floating Particles ────────────────────────────────────────────────── */
+.wt-particles {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.wt-particle {
+  position: absolute;
+  opacity: 0;
+  animation: wt-float-particle linear infinite;
+}
+
+@keyframes wt-float-particle {
+  0%   { opacity: 0;   transform: translateY(0)     scale(0.6); }
+  20%  { opacity: 0.9; }
+  80%  { opacity: 0.7; }
+  100% { opacity: 0;   transform: translateY(-70px) scale(1.2); }
+}
+
+/* ── Header ────────────────────────────────────────────────────────────── */
+.wt-header {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 52px 16px 0;
+}
+
+.wt-back-btn,
+.wt-help-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(180, 120, 255, 0.35);
+  background: rgba(80, 20, 160, 0.30);
+  backdrop-filter: blur(12px);
+  color: #d8b4ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 700;
+  transition: background 0.2s, transform 0.15s;
+}
+
+.wt-back-btn:hover,
+.wt-help-btn:hover {
+  background: rgba(120, 50, 220, 0.45);
+  transform: scale(1.06);
+}
+
+.wt-header-center {
+  flex: 1;
+  text-align: center;
+  padding: 0 8px;
+}
+
+.wt-title {
+  margin: 0;
+  font-size: clamp(18px, 5vw, 22px);
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+
+.wt-title-leaf   { opacity: 0.8; }
+.wt-title-world  { color: #ffffff; }
+.wt-title-memory { color: #c084fc; }
+.wt-title-tree   { color: #a855f7; }
+
+.wt-subtitle {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: rgba(200, 160, 255, 0.65);
+  letter-spacing: 0.03em;
+}
+
+/* ── Tree Hero ─────────────────────────────────────────────────────────── */
+.wt-tree-section {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 0 0;
+  min-height: 310px;
+}
+
+.wt-tree-glow {
+  position: absolute;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(139, 60, 255, 0.28) 0%, transparent 70%);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: wt-glow-pulse 3.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.wt-tree-glow--2 {
+  width: 380px;
+  height: 380px;
+  background: radial-gradient(circle, rgba(80, 10, 180, 0.18) 0%, transparent 70%);
+  animation-delay: 1.2s;
+}
+
+@keyframes wt-glow-pulse {
+  0%, 100% { opacity: 0.7; transform: translate(-50%, -50%) scale(1);    }
+  50%       { opacity: 1.0; transform: translate(-50%, -50%) scale(1.07); }
+}
+
+.wt-tree-img {
+  position: relative;
+  z-index: 3;
+  width: min(72vw, 280px);
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 0 28px rgba(160, 80, 255, 0.65))
+          drop-shadow(0 0 60px rgba(100, 20, 200, 0.35));
+  animation: wt-tree-float 5s ease-in-out infinite;
+}
+
+@keyframes wt-tree-float {
+  0%, 100% { transform: translateY(0);   }
+  50%       { transform: translateY(-8px); }
+}
+
+/* Level badge */
+.wt-level-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 16px;
+  z-index: 10;
+  background: rgba(30, 5, 70, 0.78);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(180, 100, 255, 0.45);
+  border-radius: 16px;
+  padding: 10px 16px;
+  text-align: center;
+  min-width: 100px;
+}
+
+.wt-level-label {
+  display: block;
+  font-size: 11px;
+  color: rgba(200, 160, 255, 0.7);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.wt-level-number {
+  display: block;
+  font-size: 42px;
+  font-weight: 900;
+  line-height: 1;
+  color: #e879f9;
+  text-shadow: 0 0 16px rgba(232, 121, 249, 0.7);
+}
+
+.wt-level-tier {
+  display: block;
+  font-size: 10px;
+  color: #c084fc;
+  margin-top: 2px;
+}
+
+/* Side action pills */
+.wt-side-actions {
+  position: absolute;
+  top: 20px;
+  left: 10px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wt-side-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 8px;
+  width: 68px;
+  background: rgba(30, 5, 70, 0.72);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(160, 80, 255, 0.30);
+  border-radius: 14px;
+  color: #d8b4ff;
+  font-size: 10px;
+  text-align: center;
+  line-height: 1.3;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s;
+}
+
+.wt-side-btn:hover {
+  background: rgba(80, 20, 160, 0.55);
+  transform: scale(1.04);
+}
+
+.wt-side-icon { font-size: 20px; }
+
+/* ── Card fade-in via IntersectionObserver ─────────────────────────────── */
+.wt-fade-card {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+
+.wt-fade-card--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Cards container ───────────────────────────────────────────────────── */
+.wt-cards {
+  position: relative;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 14px 0;
+}
+
+/* Glass card base */
+.wt-card {
+  background: rgba(25, 6, 56, 0.62);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(160, 80, 255, 0.28);
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: 0 4px 24px rgba(80, 0, 160, 0.22), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
+.wt-card-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(200, 160, 255, 0.65);
+  margin: 0 0 10px;
+  text-align: center;
+}
+
+/* ── 1. Global Growth Card ─────────────────────────────────────────────── */
+.wt-growth-nums {
+  text-align: center;
+  margin: 0 0 10px;
+  line-height: 1;
+}
+
+.wt-growth-current {
+  font-size: 36px;
+  font-weight: 900;
+  color: #e879f9;
+  text-shadow: 0 0 12px rgba(232, 121, 249, 0.5);
+}
+
+.wt-growth-sep {
+  font-size: 24px;
+  color: rgba(200, 160, 255, 0.4);
+  font-weight: 300;
+}
+
+.wt-growth-total {
+  font-size: 36px;
+  font-weight: 700;
+  color: rgba(200, 160, 255, 0.55);
+}
+
+.wt-growth-unit {
+  font-size: 14px;
+  color: rgba(200, 160, 255, 0.4);
+  font-weight: 400;
+  margin-left: 4px;
+}
+
+.wt-progress-track {
+  height: 26px;
+  background: rgba(60, 10, 120, 0.55);
+  border-radius: 13px;
+  overflow: hidden;
+  border: 1px solid rgba(160, 80, 255, 0.22);
+}
+
+.wt-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6d28d9, #a855f7, #d946ef);
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 10px;
+  transition: width 1.1s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 14px rgba(168, 85, 247, 0.65), inset 0 1px 0 rgba(255,255,255,0.15);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Shimmer sweep */
+.wt-progress-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.18) 50%, transparent 100%);
+  animation: wt-shimmer 2.2s ease-in-out infinite;
+}
+
+@keyframes wt-shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(200%);  }
+}
+
+.wt-progress-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.03em;
+  position: relative;
+  z-index: 1;
+}
+
+.wt-until-next {
+  text-align: center;
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: rgba(200, 160, 255, 0.7);
+}
+
+.wt-highlight {
+  color: #c084fc;
+  font-weight: 700;
+}
+
+/* ── 2. Feed Tree Button ────────────────────────────────────────────────── */
+.wt-feed-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.wt-feed-btn {
+  position: relative;
+  width: 100%;
+  max-width: 340px;
+  padding: 18px 24px;
+  border-radius: 20px;
+  border: 1.5px solid rgba(168, 85, 247, 0.6);
+  background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 50%, #a855f7 100%);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.2s ease;
+  box-shadow:
+    0 6px 28px rgba(120, 50, 220, 0.55),
+    0 0 0 0 rgba(168, 85, 247, 0);
+}
+
+.wt-feed-btn:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow:
+    0 10px 40px rgba(120, 50, 220, 0.7),
+    0 0 32px rgba(168, 85, 247, 0.4);
+}
+
+.wt-feed-btn:active {
+  transform: scale(0.97);
+}
+
+/* Ambient pulsing glow behind button */
+.wt-feed-glow {
+  position: absolute;
+  inset: -4px;
+  border-radius: 24px;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.5) 0%, transparent 70%);
+  animation: wt-feed-ambient 2.8s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes wt-feed-ambient {
+  0%, 100% { opacity: 0.6; transform: scale(1);    }
+  50%       { opacity: 1.0; transform: scale(1.04); }
+}
+
+/* Ripple on click */
+.wt-feed-btn--ripple::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.22);
+  animation: wt-ripple 0.65s ease-out forwards;
+  pointer-events: none;
+  z-index: 1;
+}
+
+@keyframes wt-ripple {
+  0%   { opacity: 1;   transform: scale(0.85); }
+  100% { opacity: 0;   transform: scale(1.15); }
+}
+
+/* Fed state */
+.wt-feed-btn--fed {
+  background: linear-gradient(135deg, #065f46 0%, #059669 50%, #34d399 100%);
+  border-color: rgba(52, 211, 153, 0.6);
+  box-shadow: 0 6px 28px rgba(5, 150, 105, 0.55);
+}
+
+.wt-feed-inner {
+  position: relative;
+  z-index: 2;
+}
+
+.wt-feed-hint {
+  font-size: 11px;
+  color: rgba(200, 160, 255, 0.45);
+  margin: 0;
+  text-align: center;
+}
+
+/* ── 3. Community Stats ─────────────────────────────────────────────────── */
+.wt-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.wt-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: rgba(50, 10, 100, 0.45);
+  border: 1px solid rgba(160, 80, 255, 0.18);
+  border-radius: 14px;
+  padding: 12px 6px;
+}
+
+.wt-stat-icon { font-size: 20px; }
+
+.wt-stat-value {
+  font-size: 18px;
+  font-weight: 900;
+  color: #e879f9;
+  line-height: 1;
+}
+
+.wt-stat-label {
+  font-size: 9px;
+  color: rgba(200, 160, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-align: center;
+}
+
+/* ── 4. Top Contributors (full card) ───────────────────────────────────── */
+.wt-contrib-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.wt-week {
+  font-size: 9px;
+  color: rgba(200, 160, 255, 0.4);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+
+.wt-arrow-btn {
+  background: none;
+  border: none;
+  color: #c084fc;
+  font-size: 20px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  transition: transform 0.15s;
+}
+
+.wt-arrow-btn:hover { transform: translateX(2px); }
+
+.wt-contrib-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wt-contrib-list--full .wt-contrib-row--full {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(50, 10, 100, 0.38);
+  border: 1px solid rgba(160, 80, 255, 0.15);
+  border-radius: 12px;
+  padding: 10px 12px;
+  animation: wt-row-in 0.4s ease both;
+}
+
+@keyframes wt-row-in {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0);      }
+}
+
+.wt-rank {
+  font-size: 16px;
+  flex-shrink: 0;
+  width: 28px;
+  text-align: center;
+}
+
+.wt-contrib-avatar-wrap {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(80, 20, 160, 0.45);
+  border: 1px solid rgba(160, 80, 255, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.wt-contrib-avatar { font-size: 18px; }
+
+.wt-contrib-name {
+  flex: 1;
+  color: #e8d8ff;
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wt-contrib-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wt-contrib-score {
+  font-size: 14px;
+  font-weight: 700;
+  color: #c084fc;
+}
+
+.wt-contrib-leaf { font-size: 12px; }
+
+.wt-view-all {
+  background: none;
+  border: none;
+  color: rgba(192, 132, 252, 0.7);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ── 5. Reward Card (full locked) ──────────────────────────────────────── */
+.wt-card--reward-full {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle locked shimmer overlay */
+.wt-card--reward-full::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 8px,
+    rgba(160, 80, 255, 0.04) 8px,
+    rgba(160, 80, 255, 0.04) 16px
+  );
+  pointer-events: none;
+}
+
+.wt-reward-full-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.wt-reward-full-top .wt-card-eyebrow {
+  margin: 0;
+  text-align: left;
+}
+
+.wt-reward-locked-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(200, 160, 255, 0.6);
+  background: rgba(60, 10, 120, 0.55);
+  border: 1px solid rgba(160, 80, 255, 0.25);
+  border-radius: 20px;
+  padding: 4px 10px;
+}
+
+.wt-reward-full-body {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.wt-reward-shield {
+  position: relative;
+  flex-shrink: 0;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #5b21b6, #7c3aed, #a855f7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 24px rgba(168, 85, 247, 0.55);
+  filter: grayscale(40%) brightness(0.8);
+}
+
+.wt-reward-shield-glow {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.35) 0%, transparent 70%);
+  animation: wt-glow-pulse 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.wt-reward-shield-icon { font-size: 32px; filter: grayscale(1); }
+
+.wt-reward-full-info { flex: 1; }
+
+.wt-reward-name {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: rgba(232, 121, 249, 0.65);
+  line-height: 1.2;
+}
+
+.wt-reward-desc {
+  margin: 0;
+  font-size: 11px;
+  color: rgba(200, 160, 255, 0.5);
+  line-height: 1.45;
+}
+
+/* Reward progress bar */
+.wt-reward-progress-wrap { }
+
+.wt-reward-progress-track {
+  height: 8px;
+  background: rgba(60, 10, 120, 0.55);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(160, 80, 255, 0.18);
+  margin-bottom: 6px;
+}
+
+.wt-reward-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4c1d95, #7c3aed);
+  border-radius: 4px;
+  transition: width 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 8px rgba(124, 58, 237, 0.5);
+}
+
+.wt-reward-progress-label {
+  font-size: 10px;
+  color: rgba(200, 160, 255, 0.45);
+  margin: 0;
+  text-align: center;
+}
+
+/* ── 6. Row cards ───────────────────────────────────────────────────────── */
+.wt-row-cards {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: 12px;
+}
+
+/* My Contribution */
+.wt-card--mine {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  padding: 14px;
+}
+
+.wt-my-avatar {
+  font-size: 38px;
+  filter: drop-shadow(0 0 12px rgba(160, 80, 255, 0.6));
+  animation: wt-tree-float 4s ease-in-out infinite;
+}
+
+.wt-my-growth {
+  font-size: 26px;
+  font-weight: 900;
+  color: #4ade80;
+  margin: 0;
+  line-height: 1;
+}
+
+.wt-leaf { font-size: 16px; }
+
+.wt-my-label {
+  font-size: 9px;
+  color: rgba(200, 160, 255, 0.5);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.wt-thank-you {
+  margin-top: 6px;
+  padding: 4px 10px;
+  background: rgba(60, 10, 120, 0.5);
+  border: 1px solid rgba(160, 80, 255, 0.25);
+  border-radius: 20px;
+  font-size: 11px;
+  color: #c084fc;
+  font-weight: 600;
+}
+
+/* Footer card */
+.wt-card--footer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 14px;
+}
+
+.wt-footer-plant { font-size: 24px; }
+
+.wt-footer-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #e8d8ff;
+  line-height: 1.3;
+}
+
+.wt-footer-desc {
+  margin: 0;
+  font-size: 10px;
+  color: rgba(200, 160, 255, 0.5);
+  line-height: 1.4;
+}
+
+.wt-home-btn {
+  margin-top: 4px;
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  border: none;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(120, 50, 220, 0.45);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.wt-home-btn:hover {
+  transform: scale(1.04);
+  box-shadow: 0 6px 22px rgba(120, 50, 220, 0.6);
+}
+
+/* ── Bottom spacer ─────────────────────────────────────────────────────── */
+.wt-bottom-spacer { height: 80px; }
+
+/* ── Modals ────────────────────────────────────────────────────────────── */
+.wt-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(8, 0, 24, 0.78);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: wt-fade-in 0.2s ease;
+}
+
+@keyframes wt-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.wt-modal {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  background: rgba(20, 4, 50, 0.96);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(160, 80, 255, 0.35);
+  border-bottom: none;
+  border-radius: 24px 24px 0 0;
+  padding: 28px 20px 48px;
+  animation: wt-slide-up 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes wt-slide-up {
+  from { transform: translateY(60px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.wt-modal-close {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  background: rgba(80, 20, 160, 0.4);
+  border: 1px solid rgba(160, 80, 255, 0.3);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  color: #d8b4ff;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wt-modal-title {
+  margin: 0 0 20px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #e8d8ff;
+}
+
+.wt-modal-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wt-modal-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(50, 10, 100, 0.45);
+  border: 1px solid rgba(160, 80, 255, 0.18);
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+
+.wt-modal-rank {
+  width: 32px;
+  font-size: 16px;
+  text-align: center;
+}
+
+.wt-how-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.wt-how-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  background: rgba(50, 10, 100, 0.35);
+  border: 1px solid rgba(160, 80, 255, 0.18);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+
+.wt-how-icon { font-size: 26px; flex-shrink: 0; }
+
+.wt-how-title {
+  margin: 0 0 2px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #e8d8ff;
+}
+
+.wt-how-desc {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(200, 160, 255, 0.6);
+  line-height: 1.4;
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .wt-particle,
+  .wt-tree-img,
+  .wt-tree-glow,
+  .wt-bg-stars,
+  .wt-my-avatar,
+  .wt-progress-fill::after,
+  .wt-feed-glow {
+    animation: none !important;
+  }
+
+  .wt-fade-card {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

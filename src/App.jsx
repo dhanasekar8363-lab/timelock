@@ -19,6 +19,7 @@ import CapsuleViewer   from "./pages/CapsuleViewer";
 import Messages        from "./pages/Messages";
 import Search          from "./pages/Search";
 import Notifications   from "./pages/Notifications";
+import WorldTree       from "./pages/WorldTree";        // ← NEW
 import BottomNav       from "./components/BottomNav";
 import PetCompanion    from "./components/PetCompanion";
 import { PetProvider } from "./contexts/PetContext";
@@ -56,7 +57,8 @@ const routes = [
       { path: "/profile/edit",      element: <EditProfile /> },
       { path: "/capsule/id/:id",    element: <CapsuleDetail /> },
       { path: "/capsule/:slug",     element: <CapsuleViewer /> },
-      { path: "/pet",                element: <PetPage /> },
+      { path: "/pet",               element: <PetPage /> },
+      { path: "/world-tree",        element: <WorldTree /> },  // ← NEW
     ],
   },
 ];
@@ -79,7 +81,6 @@ export default function App() {
   return (
     <PetProvider>
       <RouterProvider router={router} />
-      
     </PetProvider>
   );
 }

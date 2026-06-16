@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase, getRecipientDisplayName } from "../services/supabase";
+import { getWorldTree } from "../services/worldTree";
 import { useNotifications } from "../hooks/useNotifications";
 import BottomNav from "../components/BottomNav";
 import homeBg from "../assets/backgrounds/home-bg.jpg";
@@ -44,6 +45,7 @@ function Home() {
   const [deleting, setDeleting]         = useState(false);
   const [openMenuId, setOpenMenuId]     = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [tree, setTree]                 = useState({ level: 1 });
   const navigate = useNavigate();
 
   // ── Notification bell count via shared hook ───────────────────────────
@@ -51,6 +53,7 @@ function Home() {
 
   useEffect(() => {
     fetchCapsules();
+    getWorldTree().then(({ data }) => { if (data) setTree(data); });
   }, []);
 
   const fetchCapsules = async () => {
@@ -177,6 +180,16 @@ function Home() {
             )}
           </button>
         </div>
+
+        {/* ── World Tree pill button (between notif bell and crown) ── */}
+        <button
+          className="world-tree-pill"
+          onClick={() => navigate("/world-tree")}
+          aria-label="World Tree"
+        >
+          🌳 World Tree
+        </button>
+
         <div className="crown-btn" aria-label="Premium">👑</div>
       </div>
 

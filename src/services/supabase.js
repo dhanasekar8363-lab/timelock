@@ -660,3 +660,121 @@ export const createNotification = async (userId, title, message) => {
     return { data: null, error }
   }
 }
+
+// ==================== WORLD TREE FUNCTIONS ====================
+
+/**
+ * Fetch the single shared World Tree row.
+ * Returns { data: { id, growth, created_at, updated_at } | null, error }
+ */
+export const getWorldTree = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('world_tree')
+      .select('*')
+      .limit(1)
+      .single()
+
+    if (error) throw error
+    return { data, error: null }
+  } catch (error) {
+    console.error('[getWorldTree]', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Add +1 growth to the World Tree and record the contribution.
+ * Uses an RPC function for an atomic increment so concurrent feeds
+ * never clash.
+ *
+ * @param {string} userId  The authenticated user's id
+ * @returns {{ data: { growth: number } | null, error }}
+ */
+export const feedWorldTree = async (userId) => {
+  try {
+    if (!userId) throw new Error('userId is required to feed the tree')
+
+    // 1. Atomically increment world_tree.growth
+    const { data: newGrowth, error: rpcError } = await supabase
+      .rpc('increment_world_tree_growth', { amount: 1 })
+
+    if (rpcError) throw rpcError
+
+    // 2. Record this user's individual contribution
+    const { error: contribError } = await supabase
+      .from('tree_contributions')
+      .insert([{
+        user_id:      userId,
+        contribution: 1,
+        created_at:   new Date().toISOString(),
+      }])
+
+    if (contribError) throw contribError
+
+    return { data: { growth: newGrowth }, error: null }
+  } catch (error) {
+    console.error('[feedWorldTree]', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Return the top N contributors, joined with their profile display name
+ * and avatar.  The leaderboard is all-time (sum of contribution column).
+ *
+ * @param {number} [limit=10]
+ * @returns {{ data: Array<{ rank, user_id, name, avatar, growth }>, error }}
+ */
+export const getTopContributors = async (limit = 10) => {
+  try {
+    // Aggregate contributions per user
+    const { data: rows, error } = await supabase
+      .from('tree_contributions')
+      .select('user_id, contribution')
+
+    if (error) throw error
+    if (!rows || rows.length === 0) return { data: [], error: null }
+
+    // Sum contributions per user in JS (Supabase JS v2 doesn't expose GROUP BY directly)
+    const totals = {}
+    rows.forEach(({ user_id, contribution }) => {
+      totals[user_id] = (totals[user_id] || 0) + contribution
+    })
+
+    // Sort and take top N
+    const sorted = Object.entries(totals)
+      .map(([user_id, total]) => ({ user_id, total }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, limit)
+
+    if (sorted.length === 0) return { data: [], error: null }
+
+    // Fetch profiles for display names / avatars
+    const ids = sorted.map(r => r.user_id)
+    const { data: profiles, error: profError } = await supabase
+      .from('profiles')
+      .select('id, display_name, username, avatar_url')
+      .in('id', ids)
+
+    if (profError) throw profError
+
+    const profMap = Object.fromEntries((profiles || []).map(p => [p.id, p]))
+
+    const contributors = sorted.map((r, i) => {
+      const profile = profMap[r.user_id] || {}
+      return {
+        rank:    i + 1,
+        user_id: r.user_id,
+        name:    profile.display_name || profile.username || 'Anonymous',
+        avatar:  profile.avatar_url   || '🌱',
+        growth:  r.total,
+      }
+    })
+
+    return { data: contributors, error: null }
+  } catch (error) {
+    console.error('[getTopContributors]', error)
+    return { data: [], error }
+  }
+}
