@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { supabase, getRecipientDisplayName, getRecipientEmail } from "../services/supabase";
+import { supabase, getRecipientDisplayName, getRecipientEmail, awardCapsuleOpened } from "../services/supabase";
 import { playSound } from "../utils/sounds";
 import { usePet } from "../contexts/PetContext";
+import { useAuth } from "../contexts/AuthContext";
 import LockedCapsule from "./LockedCapsule";
 import UnlockedCapsule from "./UnlockedCapsule";
 
@@ -68,6 +69,7 @@ function CapsuleViewer() {
   const [notFound, setNotFound] = useState(false);
   const [isUnlocked, setIsUnlocked] = useState(false);
   const { triggerPetEvent } = usePet();
+  const { user } = useAuth();
 
   useEffect(() => {
     if (!slug) { setNotFound(true); setLoading(false); return; }
@@ -96,6 +98,13 @@ function CapsuleViewer() {
         playSound("unlock");
         // 🐾 Lumi celebrates the capsule being unlocked
         triggerPetEvent("capsuleUnlocked");
+        // 🌳 World Tree — +200 growth for opening the capsule
+        // user?.id may be null for unauthenticated viewers; the helper guards that.
+        if (user?.id && data.id) {
+          awardCapsuleOpened(user.id, data.id).catch((e) =>
+            console.warn("[WorldTree] awardCapsuleOpened (on-load) failed silently:", e)
+          );
+        }
       }
 
       setIsUnlocked(unlocked);
@@ -108,6 +117,13 @@ function CapsuleViewer() {
     playSound("unlock");
     // 🐾 Lumi celebrates the capsule unlocking live
     triggerPetEvent("capsuleUnlocked");
+    // 🌳 World Tree — +200 growth for opening the capsule (live unlock)
+    // Dedup guard ensures only one +200 reward per capsule per user.
+    if (user?.id && capsule?.id) {
+      awardCapsuleOpened(user.id, capsule.id).catch((e) =>
+        console.warn("[WorldTree] awardCapsuleOpened (live unlock) failed silently:", e)
+      );
+    }
     setIsUnlocked(true);
   };
 

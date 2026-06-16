@@ -6,6 +6,8 @@ import {
   createNotification,
   isEmail,
   searchProfiles,
+  awardCapsuleCreated,
+  awardCapsuleSent,
 } from "../services/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { usePet, getLevel, getNextLevelXP } from "../contexts/PetContext";
@@ -694,8 +696,16 @@ function CreateCapsule() {
     // Fix 3: mark this capsule as saved so any subsequent button press on this
     // page redirects instead of inserting a duplicate.
     const savedSlug = data?.[0]?.slug || slug;
+    const savedCapsuleId = data?.[0]?.id || null;
     capsuleSavedRef.current = true;
     setSavedCapsuleSlug(savedSlug);
+
+    // 🌳 World Tree — +100 growth for creating a capsule (dedup-guarded by capsule id)
+    if (currentUserId && savedCapsuleId) {
+      awardCapsuleCreated(currentUserId, savedCapsuleId).catch((e) =>
+        console.warn("[WorldTree] awardCapsuleCreated failed silently:", e)
+      );
+    }
 
     // Fix 7: remove the draft now that it has been successfully submitted.
     try { localStorage.removeItem("capsule_draft"); } catch { /* ignore */ }
@@ -742,6 +752,14 @@ function CreateCapsule() {
           capsuleData,
         );
 
+        // 🌳 World Tree — +150 growth for sending the capsule to a recipient
+        // (dedup-guarded: same capsule id + 'send_capsule' won't fire twice)
+        if (currentUserId && savedCapsuleId) {
+          awardCapsuleSent(currentUserId, savedCapsuleId).catch((e) =>
+            console.warn("[WorldTree] awardCapsuleSent failed silently:", e)
+          );
+        }
+
         await createNotification(
           selectedUserId,
           "New Time Capsule 💌",
@@ -756,6 +774,13 @@ function CreateCapsule() {
     if (shareVia === "whatsapp") {
       const waText = `I sent you a Time Capsule! It unlocks on ${unlockDateDisplay}. Open it here: ${capsuleUrl}`;
       const waWindow = window.open(`https://wa.me/?text=${encodeURIComponent(waText)}`, "_blank");
+
+      // 🌳 World Tree — +150 for sharing via WhatsApp (counts as a send)
+      if (currentUserId && savedCapsuleId) {
+        awardCapsuleSent(currentUserId, savedCapsuleId).catch((e) =>
+          console.warn("[WorldTree] awardCapsuleSent (whatsapp) failed silently:", e)
+        );
+      }
 
       // If the browser's popup blocker killed the window, fall back to showing
       // the capsule link inline rather than leaving the user on a saved-but-stuck
@@ -790,6 +815,12 @@ function CreateCapsule() {
 
     /* 4. Share via Instagram */
     if (shareVia === "instagram") {
+      // 🌳 World Tree — +150 for sharing via Instagram (counts as a send)
+      if (currentUserId && savedCapsuleId) {
+        awardCapsuleSent(currentUserId, savedCapsuleId).catch((e) =>
+          console.warn("[WorldTree] awardCapsuleSent (instagram) failed silently:", e)
+        );
+      }
       setIgCapsuleUrl(capsuleUrl);
       setIgModalVisible(true);
       return;

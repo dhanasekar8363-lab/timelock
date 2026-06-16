@@ -662,6 +662,47 @@ export const createNotification = async (userId, title, message) => {
 }
 
 // ==================== WORLD TREE FUNCTIONS ====================
+//
+// Backend overview
+// ─────────────────
+// • `world_tree`            — single shared row holding total growth.
+// • `tree_contributions`    — per-user ledger of every growth-earning
+//                              action (action_type + amount).
+// • `tree_feed_cooldowns`   — one row per user, last "Feed Tree" timestamp.
+//
+// The 3-hour Feed Tree cooldown is enforced INSIDE the `feed_world_tree`
+// Postgres function (SECURITY DEFINER), not just in this client code. That
+// means even if the UI's local cooldown timer is stale (or someone calls
+// the RPC directly), the database is still the source of truth and a
+// second feed within the window will be rejected. Run
+// `sql/world_tree_schema.sql` once in the Supabase SQL editor to create
+// these tables + functions before using anything below.
+
+/** Growth points awarded per action — mirrors the SQL functions. */
+export const GROWTH_REWARDS = Object.freeze({
+  FEED_TREE:      35,
+  CREATE_CAPSULE: 100,
+  SEND_CAPSULE:   150,
+  OPEN_CAPSULE:   200,
+})
+
+/** Feed Tree cooldown window, mirrors the 3-hour interval in SQL. */
+export const FEED_COOLDOWN_MS = 3 * 60 * 60 * 1000
+
+/**
+ * Format a duration in seconds as a short "Xh Ym" string for display.
+ * Examples: 8100 -> "2h 15m", 600 -> "10m", 0 -> "0m".
+ */
+export const formatCooldown = (totalSeconds) => {
+  const seconds = Math.max(0, Math.ceil(totalSeconds || 0))
+  const totalMinutes = Math.ceil(seconds / 60)
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+
+  if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`
+  if (hours > 0) return `${hours}h`
+  return `${minutes}m`
+}
 
 /**
  * Fetch the single shared World Tree row.
@@ -684,40 +725,254 @@ export const getWorldTree = async () => {
 }
 
 /**
- * Add +1 growth to the World Tree and record the contribution.
- * Uses an RPC function for an atomic increment so concurrent feeds
- * never clash.
+ * Look up a user's current Feed Tree cooldown state WITHOUT attempting to
+ * feed. Use this to render "Next feed in Xh Ym" on page load.
+ *
+ * @param {string} userId
+ * @returns {{ data: { lastFedAt: string|null, nextFeedAt: string|null,
+ *                      secondsRemaining: number, canFeed: boolean } | null,
+ *             error }}
+ */
+export const getFeedCooldown = async (userId) => {
+  try {
+    if (!userId) throw new Error('userId is required')
+
+    const { data, error } = await supabase
+      .rpc('get_feed_cooldown', { p_user_id: userId })
+
+    if (error) throw error
+    const row = Array.isArray(data) ? data[0] : data
+
+    if (!row) {
+      return { data: { lastFedAt: null, nextFeedAt: null, secondsRemaining: 0, canFeed: true }, error: null }
+    }
+
+    return {
+      data: {
+        lastFedAt:        row.last_fed_at,
+        nextFeedAt:       row.next_feed_at,
+        secondsRemaining: row.seconds_remaining ?? 0,
+        canFeed:          !!row.can_feed,
+      },
+      error: null,
+    }
+  } catch (error) {
+    console.error('[getFeedCooldown]', error)
+    return { data: null, error }
+  }
+}
+
+/**
+ * Convenience wrapper around getFeedCooldown() that also returns a
+ * ready-to-render "Xh Ym" string for the remaining cooldown.
+ *
+ * @param {string} userId
+ * @returns {{ data: { canFeed: boolean, secondsRemaining: number,
+ *                      formatted: string|null, nextFeedAt: string|null } | null,
+ *             error }}
+ */
+export const getRemainingFeedTime = async (userId) => {
+  const { data, error } = await getFeedCooldown(userId)
+
+  if (error || !data) {
+    return { data: { canFeed: false, secondsRemaining: 0, formatted: null, nextFeedAt: null }, error }
+  }
+
+  if (data.canFeed) {
+    return { data: { canFeed: true, secondsRemaining: 0, formatted: null, nextFeedAt: data.nextFeedAt }, error: null }
+  }
+
+  return {
+    data: {
+      canFeed:          false,
+      secondsRemaining: data.secondsRemaining,
+      formatted:        formatCooldown(data.secondsRemaining),
+      nextFeedAt:       data.nextFeedAt,
+    },
+    error: null,
+  }
+}
+
+/**
+ * Feed the World Tree: +35 growth, once every 3 hours per user.
+ *
+ * The cooldown check happens atomically inside the `feed_world_tree`
+ * Postgres function, so this is safe to call even without checking
+ * getFeedCooldown() first — but the UI should still check first so it can
+ * show a countdown instead of letting the user click a doomed button.
  *
  * @param {string} userId  The authenticated user's id
- * @returns {{ data: { growth: number } | null, error }}
+ * @returns {{
+ *   data: { fed: boolean, growth: number, nextFeedAt: string, secondsRemaining: number } | null,
+ *   error: object | null,
+ *   cooldownActive: boolean   // true if the feed was rejected due to cooldown
+ * }}
  */
 export const feedWorldTree = async (userId) => {
   try {
     if (!userId) throw new Error('userId is required to feed the tree')
 
-    // 1. Atomically increment world_tree.growth
-    const { data: newGrowth, error: rpcError } = await supabase
-      .rpc('increment_world_tree_growth', { amount: 1 })
+    const { data, error } = await supabase
+      .rpc('feed_world_tree', { p_user_id: userId })
 
-    if (rpcError) throw rpcError
+    if (error) throw error
+    const row = Array.isArray(data) ? data[0] : data
+    if (!row) throw new Error('No data returned from feed_world_tree')
 
-    // 2. Record this user's individual contribution
-    const { error: contribError } = await supabase
-      .from('tree_contributions')
-      .insert([{
-        user_id:      userId,
-        contribution: 1,
-        created_at:   new Date().toISOString(),
-      }])
-
-    if (contribError) throw contribError
-
-    return { data: { growth: newGrowth }, error: null }
+    return {
+      data: {
+        fed:              !!row.fed,
+        growth:           row.growth,
+        nextFeedAt:       row.next_feed_at,
+        secondsRemaining: row.seconds_remaining ?? 0,
+      },
+      error: null,
+      cooldownActive: !row.fed,
+    }
   } catch (error) {
     console.error('[feedWorldTree]', error)
-    return { data: null, error }
+    return { data: null, error, cooldownActive: false }
   }
 }
+
+/**
+ * Check whether a user has already received a specific growth reward for a
+ * given capsule, preventing duplicate payouts.
+ *
+ * Queries `tree_contributions` for a row matching (user_id, action_type,
+ * reference_id).  The `reference_id` column must exist on that table — run
+ * the migration below once in the Supabase SQL editor if it doesn't yet:
+ *
+ *   ALTER TABLE public.tree_contributions
+ *     ADD COLUMN IF NOT EXISTS action_type   text,
+ *     ADD COLUMN IF NOT EXISTS reference_id  text;
+ *   CREATE UNIQUE INDEX IF NOT EXISTS tree_contributions_dedup
+ *     ON public.tree_contributions (user_id, action_type, reference_id)
+ *     WHERE reference_id IS NOT NULL;
+ *
+ * @param {string} userId
+ * @param {string} actionType  e.g. 'create_capsule'
+ * @param {string} referenceId  The capsule's UUID or slug
+ * @returns {boolean}  true → already awarded (skip); false → safe to award
+ */
+const _hasBeenAwarded = async (userId, actionType, referenceId) => {
+  try {
+    const { data, error } = await supabase
+      .from('tree_contributions')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('action_type', actionType)
+      .eq('reference_id', referenceId)
+      .maybeSingle()
+
+    if (error) {
+      // If the column doesn't exist yet, fail open so the award still fires.
+      console.warn('[_hasBeenAwarded] query failed — failing open:', error.message)
+      return false
+    }
+    return !!data   // null → not awarded yet; row → already awarded
+  } catch (err) {
+    console.warn('[_hasBeenAwarded] unexpected error — failing open:', err)
+    return false
+  }
+}
+
+/**
+ * Generic, cooldown-free growth award used by the three capsule-action
+ * reward triggers. Each call is dedup-guarded: a user never receives the
+ * same reward more than once for the same capsule.
+ *
+ * Public API (call these after their respective actions succeed):
+ *
+ *   await awardCapsuleCreated(userId, capsuleId)  // +100, after capsule insert
+ *   await awardCapsuleSent(userId, capsuleId)     // +150, after capsule is sent/shared
+ *   await awardCapsuleOpened(userId, capsuleId)   // +200, after capsule unlocks
+ *
+ * `capsuleId` is the capsule's UUID (data[0].id from the DB insert) or slug.
+ * Passing the same capsuleId twice for the same actionType is a no-op.
+ *
+ * The `award_tree_growth` RPC should also accept an optional `p_reference_id`
+ * param so the DB can enforce the uniqueness constraint server-side.  Add it
+ * to the function signature in SQL if not already present:
+ *
+ *   CREATE OR REPLACE FUNCTION award_tree_growth(
+ *     p_user_id     uuid,
+ *     p_action_type text,
+ *     p_amount      int,
+ *     p_reference_id text DEFAULT NULL
+ *   ) ...
+ *
+ * @returns {{ data: { growth: number } | null, error, skipped: boolean }}
+ *   `skipped` is true when the reward was already granted (duplicate guard hit).
+ */
+const awardTreeGrowth = async (userId, actionType, amount, referenceId = null) => {
+  try {
+    if (!userId) throw new Error('userId is required')
+
+    // ── Duplicate-prevention guard ──────────────────────────────────────────
+    // If we have a referenceId (capsule id/slug), check before calling the RPC
+    // so we never fire the Postgres function for a reward already granted.
+    if (referenceId) {
+      const alreadyAwarded = await _hasBeenAwarded(userId, actionType, referenceId)
+      if (alreadyAwarded) {
+        console.info(`[awardTreeGrowth] skipping duplicate: ${actionType} / ${referenceId}`)
+        return { data: null, error: null, skipped: true }
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
+    const { data: newGrowth, error } = await supabase
+      .rpc('award_tree_growth', {
+        p_user_id:      userId,
+        p_action_type:  actionType,
+        p_amount:       amount,
+        // Pass reference_id so the DB uniqueness constraint can double-enforce
+        // dedup (the SQL function ignores this param if not yet added).
+        ...(referenceId ? { p_reference_id: referenceId } : {}),
+      })
+
+    if (error) throw error
+    return { data: { growth: newGrowth }, error: null, skipped: false }
+  } catch (error) {
+    console.error(`[awardTreeGrowth:${actionType}]`, error)
+    return { data: null, error, skipped: false }
+  }
+}
+
+/**
+ * Award +100 growth when a capsule is successfully created (inserted into DB).
+ *
+ * @param {string} userId     The authenticated creator's user id.
+ * @param {string} capsuleId  The capsule's UUID (data[0].id from the insert).
+ *                            Used to prevent duplicate rewards for the same capsule.
+ */
+export const awardCapsuleCreated = (userId, capsuleId) =>
+  awardTreeGrowth(userId, 'create_capsule', GROWTH_REWARDS.CREATE_CAPSULE, capsuleId)
+
+/**
+ * Award +150 growth when a capsule is sent / shared with a recipient.
+ *
+ * Call this after the capsule is successfully delivered (in-app message sent,
+ * WhatsApp link opened, or Instagram link copied).
+ *
+ * @param {string} userId     The authenticated sender's user id.
+ * @param {string} capsuleId  The capsule's UUID.
+ */
+export const awardCapsuleSent = (userId, capsuleId) =>
+  awardTreeGrowth(userId, 'send_capsule', GROWTH_REWARDS.SEND_CAPSULE, capsuleId)
+
+/**
+ * Award +200 growth when a locked capsule is opened / unlocked.
+ *
+ * Call this for whichever user is viewing the capsule at unlock time — either
+ * because it was already past its unlock date when they arrived, or because the
+ * live countdown just hit zero.
+ *
+ * @param {string} userId     The authenticated viewer's user id.
+ * @param {string} capsuleId  The capsule's UUID or slug (used as reference_id).
+ */
+export const awardCapsuleOpened = (userId, capsuleId) =>
+  awardTreeGrowth(userId, 'open_capsule', GROWTH_REWARDS.OPEN_CAPSULE, capsuleId)
 
 /**
  * Return the top N contributors, joined with their profile display name
