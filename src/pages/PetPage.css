@@ -19,23 +19,6 @@
   padding: 0 0 80px;
 }
 
-.pet-page::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-
-  background: linear-gradient(
-    180deg,
-    rgba(8, 6, 30, 0.10) 0%,
-    rgba(8, 6, 30, 0.25) 40%,
-    rgba(8, 6, 30, 0.45) 70%,
-    rgba(8, 6, 30, 0.70) 100%
-  );
-
-  pointer-events: none;
-  z-index: 0;
-}
-
 .pet-page > * {
   position: relative;
   z-index: 1;
