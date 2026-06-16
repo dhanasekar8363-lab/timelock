@@ -910,8 +910,8 @@ const awardTreeGrowth = async (userId, actionType, amount, referenceId = null) =
     if (!userId) throw new Error('userId is required')
 
     // ── Duplicate-prevention guard ──────────────────────────────────────────
-    // If we have a referenceId (capsule id/slug), check before calling the RPC
-    // so we never fire the Postgres function for a reward already granted.
+    // If we have a referenceId (capsule id/slug), check tree_contributions
+    // before firing the RPC so we never double-award the same capsule event.
     if (referenceId) {
       const alreadyAwarded = await _hasBeenAwarded(userId, actionType, referenceId)
       if (alreadyAwarded) {
@@ -921,13 +921,39 @@ const awardTreeGrowth = async (userId, actionType, amount, referenceId = null) =
     }
     // ────────────────────────────────────────────────────────────────────────
 
+    // ── 1. Write contribution row with reference_id for dedup ────────────────
+    // This ensures _hasBeenAwarded() can find the row on the next page load
+    // even if the RPC does not populate reference_id itself.
+    if (referenceId) {
+      const { error: contribError } = await supabase
+        .from('tree_contributions')
+        .insert({
+          user_id:      userId,
+          contribution: amount,
+          action_type:  actionType,
+          reference_id: referenceId,
+        })
+
+      // A unique-constraint violation (code 23505) means the row already exists
+      // — treat it as a duplicate and bail silently.
+      if (contribError) {
+        if (contribError.code === '23505') {
+          console.info(`[awardTreeGrowth] DB dedup hit: ${actionType} / ${referenceId}`)
+          return { data: null, error: null, skipped: true }
+        }
+        // Log but continue — the RPC is the authoritative growth writer.
+        console.warn('[awardTreeGrowth] contribution insert warning:', contribError.message)
+      }
+    }
+
+    // ── 2. Call the RPC to atomically increment world_tree.growth ────────────
     const { data: newGrowth, error } = await supabase
       .rpc('award_tree_growth', {
         p_user_id:      userId,
         p_action_type:  actionType,
         p_amount:       amount,
-        // Pass reference_id so the DB uniqueness constraint can double-enforce
-        // dedup (the SQL function ignores this param if not yet added).
+        // Pass reference_id so the DB function can enforce dedup server-side
+        // if it supports the optional param (ignored otherwise).
         ...(referenceId ? { p_reference_id: referenceId } : {}),
       })
 
