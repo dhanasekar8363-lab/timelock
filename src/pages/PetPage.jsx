@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import lumi from "../assets/lumi.png";
+import petBg from "../assets/backgrounds/pet-bg.png";
 import {
   usePet, MOODS, getLevel, getCurrentLevelXP, getNextLevelXP,
   FOOD_COOLDOWNS, GIFT_COOLDOWNS,
@@ -906,7 +907,12 @@ export default function PetPage() {
   const moodDesc      = MOOD_DESC[mood]   ?? "Lumi is feeling great today!";
 
   return (
-    <div className="pet-page">
+    <div
+      className="pet-page"
+      style={{
+        backgroundImage: `url(${petBg})`,
+      }}
+    >
 
       {/* ── Flying food animation ── */}
       <AnimatePresence>
