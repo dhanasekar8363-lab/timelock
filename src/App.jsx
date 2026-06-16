@@ -31,11 +31,13 @@ function Layout() {
   const location = useLocation();
   const showNav = !NO_NAV_ROUTES.includes(location.pathname);
   return (
-    <>
-      <Outlet />
-      {showNav && <BottomNav />}
-      <PetCompanion />
-    </>
+    <div className="app-shell">
+      <div className="app-container">
+        <Outlet />
+        {showNav && <BottomNav />}
+        <PetCompanion />
+      </div>
+    </div>
   );
 }
 
