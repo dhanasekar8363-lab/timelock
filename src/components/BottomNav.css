@@ -23,12 +23,12 @@
   align-items: center;
 
   /* ↓ Tighter vertical rhythm — 10 px top, safe-area bottom */
-  padding: 5px 4px calc(5px + env(safe-area-inset-bottom));
+  padding: 3px 4px calc(3px + env(safe-area-inset-bottom));
 
   box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.5);
 
   /* Fixed height so content padding is predictable */
-  min-height: 52px;
+  min-height: 46px;
   height: auto;
 }
 
@@ -71,7 +71,7 @@
 
 /* ── Icon — larger than before ── */
 .nav-icon {
-  font-size: 26px;           /* was 22 px */
+  font-size: 20px;
   display: block;
   line-height: 1;
   transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
@@ -107,7 +107,7 @@
   background: linear-gradient(135deg, rgba(124, 92, 255, 0.52), rgba(168, 139, 255, 0.32));
   border: 1px solid rgba(168, 139, 255, 0.5);
   border-radius: 14px;
-  padding: 5px 14px;         /* was 8 px / 14 px */
+  padding: 3px 12px;
 
   /* Smaller lift so it doesn't eat into content area */
   transform: translateY(-4px) scale(1.04);
@@ -123,8 +123,8 @@
 }
 
 .nav-item.nav-active .nav-icon {
-  font-size: 26px;
-  transform: scale(1.2);     /* was 1.28 */
+  font-size: 20px;
+  transform: scale(1.15);
   filter: drop-shadow(0 0 7px rgba(167, 139, 250, 0.9));
 }
 
@@ -138,36 +138,36 @@
 /* ── Tablet / desktop ── */
 @media (min-width: 768px) {
   .bottom-nav {
-    padding: 7px 8px calc(7px + env(safe-area-inset-bottom));
-    min-height: 56px;
+    padding: 5px 8px calc(5px + env(safe-area-inset-bottom));
+    min-height: 50px;
   }
   .nav-item-wrapper  { max-width: 84px; }
-  .nav-item          { padding: 8px 16px; gap: 4px; }
-  .nav-icon          { font-size: 28px; }
+  .nav-item          { padding: 6px 16px; gap: 3px; }
+  .nav-icon          { font-size: 22px; }
   .nav-label         { font-size: 10px; }
   .nav-item.nav-active {
-    padding: 7px 20px;
-    transform: translateY(-5px) scale(1.05);
+    padding: 5px 18px;
+    transform: translateY(-4px) scale(1.05);
   }
-  .nav-item.nav-active .nav-icon { transform: scale(1.22); }
+  .nav-item.nav-active .nav-icon { transform: scale(1.15); }
 }
 
 /* ── Mobile narrow (360–480 px) — primary target ── */
 @media (max-width: 480px) {
   .bottom-nav {
-    padding: 4px 2px calc(4px + env(safe-area-inset-bottom));
-    min-height: 48px;
+    padding: 2px 2px calc(2px + env(safe-area-inset-bottom));
+    min-height: 42px;
     border-radius: 16px 16px 0 0;
   }
   .nav-item-wrapper  { max-width: 64px; }
-  .nav-item          { padding: 5px 8px; gap: 2px; min-width: 44px; min-height: 42px; }
-  .nav-icon          { font-size: 24px; }
+  .nav-item          { padding: 3px 8px; gap: 2px; min-width: 44px; min-height: 38px; }
+  .nav-icon          { font-size: 19px; }
   .nav-label         { font-size: 9px; }
   .nav-item.nav-active {
-    padding: 4px 12px;
+    padding: 3px 10px;
     transform: translateY(-3px) scale(1.04);
   }
-  .nav-item.nav-active .nav-icon { transform: scale(1.15); }
+  .nav-item.nav-active .nav-icon { transform: scale(1.1); }
 }
 
 /* ── XP Reward Popup ── */
