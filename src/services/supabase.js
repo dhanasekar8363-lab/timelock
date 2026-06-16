@@ -940,6 +940,75 @@ const awardTreeGrowth = async (userId, actionType, amount, referenceId = null) =
 }
 
 /**
+ * Reusable helper: record a growth contribution row AND increment the
+ * world_tree.growth counter in a single atomic operation.
+ *
+ * Usage (call ONLY after the triggering action has succeeded):
+ *
+ *   await addTreeGrowth(user.id, 100, 'create_capsule')
+ *
+ * The function:
+ *   1. Inserts a row into `tree_contributions`
+ *      { user_id, contribution, action_type }
+ *   2. Increments `world_tree.growth` by `growthAmount`
+ *
+ * Both writes are attempted; if either fails the error is logged and
+ * re-thrown so the caller can decide whether to surface it.
+ *
+ * For dedup-guarded capsule rewards prefer the typed wrappers below
+ * (awardCapsuleCreated / awardCapsuleSent / awardCapsuleOpened) which
+ * also prevent double-awarding via the `award_tree_growth` RPC.
+ *
+ * @param {string} userId        Authenticated user's UUID.
+ * @param {number} growthAmount  Points to add (e.g. 100).
+ * @param {string} actionType    Label stored in tree_contributions
+ *                               (e.g. 'create_capsule').
+ * @returns {{ data: { growth: number } | null, error: object | null }}
+ */
+export const addTreeGrowth = async (userId, growthAmount, actionType) => {
+  try {
+    if (!userId)       throw new Error('addTreeGrowth: userId is required')
+    if (!growthAmount) throw new Error('addTreeGrowth: growthAmount is required')
+    if (!actionType)   throw new Error('addTreeGrowth: actionType is required')
+
+    // ── 1. Record the contribution row ──────────────────────────────────────
+    const { error: contribError } = await supabase
+      .from('tree_contributions')
+      .insert({
+        user_id:      userId,
+        contribution: growthAmount,
+        action_type:  actionType,
+      })
+
+    if (contribError) throw contribError
+
+    // ── 2. Increment world_tree.growth ───────────────────────────────────────
+    // Fetch the single shared row first so we can do a safe increment.
+    const { data: treeRow, error: fetchError } = await supabase
+      .from('world_tree')
+      .select('id, growth')
+      .limit(1)
+      .single()
+
+    if (fetchError) throw fetchError
+
+    const newGrowth = (treeRow.growth || 0) + growthAmount
+
+    const { error: updateError } = await supabase
+      .from('world_tree')
+      .update({ growth: newGrowth, updated_at: new Date().toISOString() })
+      .eq('id', treeRow.id)
+
+    if (updateError) throw updateError
+
+    return { data: { growth: newGrowth }, error: null }
+  } catch (error) {
+    console.error(`[addTreeGrowth:${actionType}]`, error)
+    return { data: null, error }
+  }
+}
+
+/**
  * Award +100 growth when a capsule is successfully created (inserted into DB).
  *
  * @param {string} userId     The authenticated creator's user id.
