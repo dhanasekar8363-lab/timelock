@@ -11,6 +11,11 @@ import {
   usePet, MOODS, getLevel, getCurrentLevelXP, getNextLevelXP,
   FOOD_COOLDOWNS, GIFT_COOLDOWNS,
 } from "../contexts/PetContext";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  getPetProfile,
+  updatePetProfile,
+} from "../services/petService";
 import "./PetPage.css";
 
 /* ─────────────────────────────────────────────
@@ -574,6 +579,7 @@ function LumiReaction({ reaction, fadingOut }) {
 ───────────────────────────────────────────── */
 export default function PetPage() {
   const navigate  = useNavigate();
+  const { user }  = useAuth();
   const {
     mood, petXP, addXP, triggerCelebration, setMoodForPage,
     startCooldown, getRemainingCooldown, isCooldownActive,
@@ -632,15 +638,29 @@ export default function PetPage() {
 
   /* Check if daily gift already claimed today */
   useEffect(() => {
-    try {
-      const today = new Date().toDateString();
-      const raw   = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const d = JSON.parse(raw);
-        if (d.lastGiftDate === today) setGiftClaimed(true);
+    const checkDailyGift = async () => {
+      if (!user?.id) return;
+
+      const { data } = await getPetProfile(user.id);
+
+      if (!data?.last_daily_claim) {
+        setGiftClaimed(false);
+        return;
       }
-    } catch (_) {}
-  }, []);
+
+      const lastClaim = new Date(data.last_daily_claim);
+      const today     = new Date();
+
+      const sameDay =
+        lastClaim.getFullYear() === today.getFullYear() &&
+        lastClaim.getMonth()    === today.getMonth()    &&
+        lastClaim.getDate()     === today.getDate();
+
+      setGiftClaimed(sameDay);
+    };
+
+    checkDailyGift();
+  }, [user]);
 
   /* Set page mood on mount */
   useEffect(() => {
@@ -849,9 +869,15 @@ export default function PetPage() {
   }, [giftOpening, awardXP, triggerCelebration]);
 
   /* Claim daily gift */
-  const handleClaimGift = useCallback(() => {
+  const handleClaimGift = useCallback(async () => {
     if (giftClaimed) return;
+
     setGiftClaimed(true);
+
+    await updatePetProfile(user.id, {
+      last_daily_claim: new Date().toISOString(),
+    });
+
     const today = new Date().toDateString();
     setData((prev) => {
       const next = {
@@ -864,7 +890,7 @@ export default function PetPage() {
       return next;
     });
     awardXP(50);
-  }, [giftClaimed, awardXP]);
+  }, [giftClaimed, awardXP, user]);
 
   // Derive level info from the canonical petXP stored in PetContext
   const lumiLevel     = getLevel(petXP);
