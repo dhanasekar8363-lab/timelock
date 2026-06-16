@@ -53,7 +53,7 @@
  *    - File names are case-sensitive on Android's asset filesystem
  *      (unlike some dev setups). Confirm exact casing matches
  *      "capsule-send.mp3", "notification.mp3", "unlock.mp3",
- *      "achievement.mp3".
+ *      "achievement.mp3", "lumi-spark.mp3".
  */
 
 import { Howl, Howler } from "howler";
@@ -134,6 +134,11 @@ const SOUND_CONFIG = {
   achievement: {
     src: ["/sounds/achievement.mp3"],
     volume: 0.75,
+    html5: FORCE_HTML5,
+  },
+  lumiSpark: {
+    src: ["/sounds/lumi-spark.mp3"],
+    volume: 0.35,
     html5: FORCE_HTML5,
   },
 };
@@ -324,6 +329,7 @@ export const sounds = {
   notification: () => playSound("notification"),
   unlock: () => playSound("unlock"),
   achievement: () => playSound("achievement"),
+  lumiSpark: () => playSound("lumiSpark"),
 };
 
 export default sounds;

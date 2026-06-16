@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useCallback, useRef, useEffect } f
 import { useAuth } from "./AuthContext";
 import { getPetProfile, createPetProfile, updatePetProfile } from "../services/petService";
 import { supabase } from "../services/supabase";
+import { playSound } from "../utils/sounds";
 
 /* ══════════════════════════════════════════
    PetContext — drives Lumi's reactive events + mood system
@@ -575,6 +576,11 @@ export function PetProvider({ children }) {
       const nextLevel   = getLevel(next);
 
       if (nextLevel > prevLevel) {
+        // 🔊 Level-up sound — lives here (not in PetCompanion) so it fires
+        // exactly once per addXP() call, even if this single XP reward
+        // pushes the pet up multiple levels at once.
+        playSound("lumiSpark");
+
         // Walk every level gained in this single addXP call (rare but safe)
         for (let lv = prevLevel + 1; lv <= nextLevel; lv++) {
           if (!seenLevelsRef.current.has(lv)) {

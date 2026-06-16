@@ -56,10 +56,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px;
-  background: rgba(8, 6, 30, 0.75);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: transparent;
 }
 
 .pet-header-btn {

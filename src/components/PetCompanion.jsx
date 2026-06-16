@@ -43,8 +43,6 @@ const PAGE_MOODS = {
 ───────────────────────────────────────────── */
 const SOUND_TAP   = "/sounds/lumi-tap.mp3";
 const SOUND_PURR  = "/sounds/lumi-purr.mp3";
-const SOUND_SPARK = "/sounds/lumi-spark.mp3";
-const SPARK_SOUND_CHANCE = 0.3;
 
 /* ─────────────────────────────────────────────
    Random speech messages (fallback / generic)
@@ -299,7 +297,6 @@ export default function PetCompanion() {
   /* ── Sound effect refs ── */
   const tapSoundRef   = useRef(null);
   const purrSoundRef  = useRef(null);
-  const sparkSoundRef = useRef(null);
 
   /* ── Location (for page-based mood) ── */
   const location = useLocation();
@@ -357,18 +354,15 @@ export default function PetCompanion() {
   useEffect(() => {
     tapSoundRef.current   = new Audio(SOUND_TAP);
     purrSoundRef.current  = new Audio(SOUND_PURR);
-    sparkSoundRef.current = new Audio(SOUND_SPARK);
 
     tapSoundRef.current.volume   = 0.25;
     purrSoundRef.current.volume  = 0.4;
-    sparkSoundRef.current.volume = 0.35;
 
     tapSoundRef.current.preload   = "auto";
     purrSoundRef.current.preload  = "auto";
-    sparkSoundRef.current.preload = "auto";
 
     return () => {
-      [tapSoundRef, purrSoundRef, sparkSoundRef].forEach((ref) => {
+      [tapSoundRef, purrSoundRef].forEach((ref) => {
         const audio = ref.current;
         if (!audio) return;
         try {
@@ -517,7 +511,6 @@ export default function PetCompanion() {
   const petLumi = useCallback(() => {
     resetSleepTimer();
     playSound(tapSoundRef);
-    if (Math.random() < SPARK_SOUND_CHANCE) playSound(sparkSoundRef);
 
     setTapped(true);
     setTimeout(() => setTapped(false), 300);
@@ -675,17 +668,16 @@ export default function PetCompanion() {
      Level-up reward — fires once per new level
      · Celebration animation on Lumi
      · Dense sparkle burst particles
-     · lumi-spark.mp3
      · "Lumi reached Level X!" tooltip
+     (lumi-spark.mp3 now plays from PetContext.addXP() itself — see
+      sounds.js "lumiSpark" — so it fires exactly once per addXP() call
+      even when a single XP reward pushes Lumi up multiple levels.)
   ───────────────────────────────────────── */
   useEffect(() => {
     if (!levelUpReward) return;
     const { level } = levelUpReward;
 
     resetSleepTimer();
-
-    // Play lumi-spark.mp3
-    playSound(sparkSoundRef);
 
     // Celebration animation
     setAnimState("tap");
@@ -705,7 +697,7 @@ export default function PetCompanion() {
     }, 5000);
 
     return () => clearTimeout(tooltipTimer.current);
-  }, [levelUpReward, resetSleepTimer, playSound, clearLevelUpReward]);
+  }, [levelUpReward, resetSleepTimer, clearLevelUpReward]);
   const toggleHidden = useCallback((val) => {
     const next = val ?? !hidden;
     setHidden(next);
