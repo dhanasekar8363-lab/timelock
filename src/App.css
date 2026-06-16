@@ -204,20 +204,3 @@
   color: white;
   font-size: 16px;
 }
-
-/* ── Mobile app shell: centers the app on desktop ── */
-.app-shell {
-  min-height: 100dvh;
-  background: #06061a;
-  display: flex;
-  justify-content: center;
-}
-
-.app-container {
-  position: relative;
-  width: 100%;
-  max-width: 430px;
-  min-height: 100dvh;
-  overflow: hidden;
-  box-shadow: 0 0 80px rgba(0, 0, 0, 0.8);
-}

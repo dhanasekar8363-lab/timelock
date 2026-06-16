@@ -136,25 +136,20 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 24px 24px;
+  padding: 0 16px 26px;
 }
 
 .search-bar {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: rgba(255,255,255,0.06);
+  gap: 12px;
+  background: var(--glass-bg);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 14px;
-  padding: 9px 14px;
-  height: 44px;
-  box-sizing: border-box;
-  box-shadow:
-    0 8px 24px rgba(0,0,0,0.25),
-    inset 0 1px 0 rgba(255,255,255,0.08);
+  border: 1.5px solid var(--glass-border);
+  border-radius: 26px;
+  padding: 16px 20px;
   transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
 
@@ -180,8 +175,7 @@
 }
 
 .search-input::placeholder {
-  color: rgba(255,255,255,0.5);
-  font-size: 14px;
+  color: rgba(255,255,255,0.35);
 }
 
 .search-clear {
@@ -208,9 +202,9 @@
 .filter-btn {
   position: relative;
   flex-shrink: 0;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
   border: 1.5px solid rgba(124,92,255,0.45);
   background: linear-gradient(135deg, rgba(124,92,255,0.45), rgba(168,139,255,0.25));
   color: #fff;
@@ -703,8 +697,8 @@
   .hero-icon-wrap { width: 80px; height: 80px; }
   .hero-icon { width: 54px; height: 54px; }
 
-  .filter-btn { width: 44px; height: 44px; border-radius: 12px; }
-  .search-bar { padding: 9px 12px; border-radius: 12px; }
+  .filter-btn { width: 50px; height: 50px; border-radius: 16px; }
+  .search-bar { padding: 14px 16px; border-radius: 22px; }
 
   .empty-state-card { padding: 44px 18px 38px; border-radius: 24px; }
   .empty-icon-wrap { width: 84px; height: 84px; }
@@ -716,27 +710,5 @@
   }
   .capsule-btn {
     grid-column: span 2;
-  }
-}
-
-/* ── Desktop: constrain to mobile width ── */
-@media (min-width: 480px) {
-  .search-page {
-    max-width: 390px;
-    margin: 0 auto;
-    min-height: 100dvh;
-    box-shadow: 0 0 60px rgba(0,0,0,0.6);
-  }
-
-  .search-overlay {
-    max-width: 390px;
-    left: 50%;
-    transform: translateX(-50%);
-  }
-
-  .page-stars {
-    max-width: 390px;
-    left: 50%;
-    transform: translateX(-50%);
   }
 }
