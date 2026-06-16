@@ -143,13 +143,19 @@
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 12px;
-  background: var(--glass-bg);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  border: 1.5px solid var(--glass-border);
-  border-radius: 26px;
-  padding: 16px 20px;
+  gap: 10px;
+
+  background: rgba(255,255,255,0.07);
+  border: 1.5px solid rgba(255,255,255,0.10);
+
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  border-radius: 50px;
+  height: 48px;
+
+  padding: 0 16px;
+
   transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
 
@@ -202,9 +208,9 @@
 .filter-btn {
   position: relative;
   flex-shrink: 0;
-  width: 56px;
-  height: 56px;
-  border-radius: 18px;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
   border: 1.5px solid rgba(124,92,255,0.45);
   background: linear-gradient(135deg, rgba(124,92,255,0.45), rgba(168,139,255,0.25));
   color: #fff;
@@ -698,7 +704,11 @@
   .hero-icon { width: 54px; height: 54px; }
 
   .filter-btn { width: 50px; height: 50px; border-radius: 16px; }
-  .search-bar { padding: 14px 16px; border-radius: 22px; }
+  .search-bar {
+    height: 46px;
+    padding: 0 14px;
+    border-radius: 50px;
+  }
 
   .empty-state-card { padding: 44px 18px 38px; border-radius: 24px; }
   .empty-icon-wrap { width: 84px; height: 84px; }
