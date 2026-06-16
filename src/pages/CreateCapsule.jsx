@@ -1,6 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { supabase, sendMessage, isEmail, searchProfiles } from "../services/supabase";
+import {
+  supabase,
+  sendMessage,
+  createNotification,
+  isEmail,
+  searchProfiles,
+} from "../services/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { usePet, getLevel, getNextLevelXP } from "../contexts/PetContext";
 import { playSound } from "../utils/sounds";
@@ -734,6 +740,12 @@ function CreateCapsule() {
           `📦 I sent you a time capsule: "${data[0].title}"`,  // human-readable fallback text
           "capsule",       // FIX: must be 'capsule', not 'text', to store structured JSON
           capsuleData,
+        );
+
+        await createNotification(
+          selectedUserId,
+          "New Time Capsule 💌",
+          `${senderName} sent you a time capsule`
         );
       } catch (msgErr) {
         console.error("Error sending capsule message:", msgErr);
