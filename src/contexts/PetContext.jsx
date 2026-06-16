@@ -296,16 +296,22 @@ export function PetProvider({ children }) {
     })()
   );
 
-  const persistCooldowns = useCallback(() => {
+  const persistCooldowns = useCallback(async () => {
     try {
+      if (user?.id) {
+        await updatePetProfile(user.id, {
+          cooldowns: cooldownsRef.current,
+        });
+      }
+
       localStorage.setItem(
         COOLDOWNS_STORAGE_KEY,
         JSON.stringify(cooldownsRef.current),
       );
-    } catch {
-      console.warn("[PetContext] Could not persist cooldowns.");
+    } catch (err) {
+      console.error("Failed to save cooldowns", err);
     }
-  }, []);
+  }, [user]);
 
   /**
    * Starts (or restarts) a cooldown for `itemId` lasting `durationMinutes`.
@@ -375,6 +381,9 @@ export function PetProvider({ children }) {
 
     const applyProfile = (profile) => {
       if (!profile || cancelled) return;
+      if (profile.cooldowns) {
+        cooldownsRef.current = profile.cooldowns;
+      }
       if (typeof profile.pet_xp === "number") setPetXP(profile.pet_xp);
       if (typeof profile.happiness === "number") setHappiness(profile.happiness);
       if (typeof profile.mood === "string" && MOODS[profile.mood]) {
@@ -426,6 +435,7 @@ export function PetProvider({ children }) {
           feed_count: localData.feedCount,
           gift_count: localData.giftCount,
           interaction_count: localData.interactionCount,
+          cooldowns: {},
         });
 
         if (cancelled) return;
