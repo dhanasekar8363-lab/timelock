@@ -1673,3 +1673,73 @@
     animation: none !important;
   }
 }
+
+/* ============================================================
+   WorldTree.css ADDITIONS — Badge Race System
+   ============================================================ */
+
+/* ── Badge row: "taken" state (globally claimed by someone else) ─────────── */
+.wt-badge-row--taken {
+  opacity: 0.65;
+}
+.wt-badge-img--taken {
+  filter: grayscale(70%) brightness(0.7);
+}
+.wt-badge-taken-icon {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  font-size: 14px;
+  background: rgba(30, 10, 60, 0.9);
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.wt-badge-rarity {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: rgba(255, 200, 80, 0.9);
+  text-shadow: 0 0 8px rgba(255, 180, 40, 0.5);
+  margin: 2px 0 0;
+}
+.wt-badge-claimed-note {
+  font-size: 10px;
+  color: rgba(180, 120, 255, 0.55);
+  margin: 2px 0 0;
+  font-style: italic;
+}
+
+/* ── Claim button: taken state ────────────────────────────────────────────── */
+.wt-claim-btn--taken {
+  background: rgba(60, 20, 100, 0.4) !important;
+  border-color: rgba(120, 60, 180, 0.3) !important;
+  color: rgba(180, 120, 255, 0.45) !important;
+  cursor: not-allowed;
+}
+
+/* ── Profile badge card: First Discoverer rarity badge ───────────────────── */
+.profile-badge-rarity {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: rgba(255, 200, 70, 0.95);
+  background: rgba(80, 30, 0, 0.5);
+  border: 1px solid rgba(255, 180, 40, 0.4);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-top: 3px;
+  text-shadow: 0 0 6px rgba(255, 180, 40, 0.6);
+}
+.profile-badge-date {
+  font-size: 9px;
+  color: rgba(180, 140, 255, 0.6);
+  margin-top: 2px;
+}
+
+/* ── World Tree section: ensure FloatingBadge can be positioned ──────────── */
+/* .wt-tree-section already has position: relative in the existing CSS. */

@@ -1071,80 +1071,120 @@ export const awardCapsuleOpened = (userId, capsuleId) =>
 
 // ==================== WORLD TREE BADGE FUNCTIONS ====================
 //
-// SQL to create the table (run once in the Supabase SQL editor):
+// GLOBAL FIRST-CLAIM MODEL: each badge_level can be won by exactly ONE
+// user across the whole app (first to reach the milestone gets it).
+// This replaces the old per-user model where every user could earn
+// every badge independently.
 //
+// SQL to run ONCE in the Supabase SQL editor before using this code:
+//
+//   -- 1. Table -----------------------------------------------------------
 //   CREATE TABLE IF NOT EXISTS public.world_tree_badges (
 //     id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
 //     user_id     uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
 //     badge_level integer NOT NULL,
+//     badge_key   text NOT NULL,
 //     badge_name  text NOT NULL,
 //     claimed_at  timestamptz NOT NULL DEFAULT now(),
-//     UNIQUE (user_id, badge_level)
+//     UNIQUE (badge_level)   -- GLOBAL: only one winner per level, app-wide
 //   );
 //
-//   -- Allow a user to insert their own rows and read all rows
 //   ALTER TABLE public.world_tree_badges ENABLE ROW LEVEL SECURITY;
-//
-//   CREATE POLICY "Users can claim their own badges"
-//     ON public.world_tree_badges FOR INSERT
-//     TO authenticated
-//     WITH CHECK (auth.uid() = user_id);
 //
 //   CREATE POLICY "Anyone can read claimed badges"
 //     ON public.world_tree_badges FOR SELECT
 //     TO authenticated
 //     USING (true);
+//
+//   -- No direct INSERT policy needed for authenticated users — all
+//   -- inserts go through the SECURITY DEFINER function below, which
+//   -- runs with elevated privileges and enforces the one-winner rule
+//   -- atomically via an advisory lock (prevents two simultaneous
+//   -- requests from both thinking they won the same badge).
+//
+//   -- 2. Atomic claim function --------------------------------------------
+//   CREATE OR REPLACE FUNCTION public.claim_world_tree_badge_atomic(
+//     p_user_id     uuid,
+//     p_badge_level integer,
+//     p_badge_name  text,
+//     p_badge_key   text
+//   )
+//   RETURNS jsonb
+//   LANGUAGE plpgsql
+//   SECURITY DEFINER
+//   SET search_path = public
+//   AS $$
+//   DECLARE
+//     v_existing public.world_tree_badges;
+//   BEGIN
+//     -- Serialize concurrent claims for this specific badge level.
+//     PERFORM pg_advisory_xact_lock(hashtext('world_tree_badge_' || p_badge_level));
+//
+//     SELECT * INTO v_existing
+//     FROM public.world_tree_badges
+//     WHERE badge_level = p_badge_level;
+//
+//     IF FOUND THEN
+//       RETURN jsonb_build_object(
+//         'claimed', false,
+//         'already_claimed_by', v_existing.user_id
+//       );
+//     END IF;
+//
+//     INSERT INTO public.world_tree_badges (user_id, badge_level, badge_name, badge_key)
+//     VALUES (p_user_id, p_badge_level, p_badge_name, p_badge_key);
+//
+//     RETURN jsonb_build_object('claimed', true, 'already_claimed_by', NULL);
+//   END;
+//   $$;
+//
+//   -- Let authenticated users call the function (it runs as the function
+//   -- owner, not the caller, so this is the only privilege they need):
+//   GRANT EXECUTE ON FUNCTION public.claim_world_tree_badge_atomic
+//     TO authenticated;
+//
+// MIGRATING FROM THE OLD PER-USER TABLE: if `world_tree_badges` already
+// exists from the previous (per-user) version, you'll need to decide who
+// "wins" each level among existing claimants, drop the old
+// UNIQUE(user_id, badge_level) constraint, add `badge_key`, and add the
+// new UNIQUE(badge_level) constraint before running the function above.
+
+// ── Badge metadata (keep in sync with WorldTree.jsx) ──────────────────────
+export const WORLD_TREE_BADGE_META = [
+  { level: 5,  key: 'seed_pioneer',     name: 'Seed Pioneer'     },
+  { level: 10, key: 'nature_guardian',  name: 'Nature Guardian'  },
+  { level: 15, key: 'tree_keeper',      name: 'Tree Keeper'      },
+  { level: 20, key: 'forest_protector', name: 'Forest Protector' },
+  { level: 25, key: 'memory_guardian',  name: 'Memory Guardian'  },
+]
 
 /**
- * Claim a World Tree milestone badge for the current user.
+ * Fetch the current global claim status for ALL World Tree badges.
+ * Returns every badge that has EVER been claimed (by any user).
+ * Used to know which floating badges should be hidden for everyone.
  *
- * Inserts a row into `world_tree_badges`. The UNIQUE(user_id, badge_level)
- * constraint prevents double-claims at the DB level; a 23505 duplicate-key
- * error is treated as "already claimed" and returned as `alreadyClaimed: true`
- * rather than a hard error.
- *
- * @param {string} userId      Authenticated user's UUID.
- * @param {number} badgeLevel  Milestone level (5 / 10 / 15 / 20 / 25).
- * @param {string} badgeName   Human-readable badge name.
- * @returns {{ data: object|null, error: object|null, alreadyClaimed: boolean }}
+ * @returns {{ data: Array<{ id, user_id, badge_level, badge_key, badge_name, claimed_at }>, error }}
  */
-export const claimWorldTreeBadge = async (userId, badgeLevel, badgeName) => {
+export const getAllWorldTreeBadgeClaims = async () => {
   try {
-    if (!userId)     throw new Error('claimWorldTreeBadge: userId is required')
-    if (!badgeLevel) throw new Error('claimWorldTreeBadge: badgeLevel is required')
-    if (!badgeName)  throw new Error('claimWorldTreeBadge: badgeName is required')
-
     const { data, error } = await supabase
       .from('world_tree_badges')
-      .insert({
-        user_id:     userId,
-        badge_level: badgeLevel,
-        badge_name:  badgeName,
-        claimed_at:  new Date().toISOString(),
-      })
-      .select()
-      .single()
+      .select('id, user_id, badge_level, badge_key, badge_name, claimed_at')
+      .order('claimed_at', { ascending: true })
 
-    if (error) {
-      // Unique-constraint violation → already claimed
-      if (error.code === '23505') {
-        return { data: null, error: null, alreadyClaimed: true }
-      }
-      throw error
-    }
-
-    return { data, error: null, alreadyClaimed: false }
+    if (error) throw error
+    return { data: data || [], error: null }
   } catch (error) {
-    console.error('[claimWorldTreeBadge]', error)
-    return { data: null, error, alreadyClaimed: false }
+    console.error('[getAllWorldTreeBadgeClaims]', error)
+    return { data: [], error }
   }
 }
 
 /**
- * Fetch all World Tree badges already claimed by a user.
+ * Fetch all World Tree badges already claimed by a specific user.
  *
  * @param {string} userId  Authenticated user's UUID.
- * @returns {{ data: Array<{ id, user_id, badge_level, badge_name, claimed_at }>, error }}
+ * @returns {{ data: Array<{ id, user_id, badge_level, badge_key, badge_name, claimed_at }>, error }}
  *          `data` is an empty array when the user has no badges yet.
  */
 export const getClaimedWorldTreeBadges = async (userId) => {
@@ -1153,7 +1193,7 @@ export const getClaimedWorldTreeBadges = async (userId) => {
 
     const { data, error } = await supabase
       .from('world_tree_badges')
-      .select('id, user_id, badge_level, badge_name, claimed_at')
+      .select('id, user_id, badge_level, badge_key, badge_name, claimed_at')
       .eq('user_id', userId)
       .order('badge_level', { ascending: true })
 
@@ -1163,6 +1203,104 @@ export const getClaimedWorldTreeBadges = async (userId) => {
     console.error('[getClaimedWorldTreeBadges]', error)
     return { data: [], error }
   }
+}
+
+/**
+ * Attempt to claim a World Tree milestone badge — GLOBAL first-claim only.
+ *
+ * Calls the atomic `claim_world_tree_badge_atomic` stored procedure (see SQL
+ * above), which uses a Postgres advisory lock so two users hitting the same
+ * milestone at the same instant can't both "win" it.
+ *
+ * @param {string} userId      Authenticated user's UUID.
+ * @param {number} badgeLevel  Milestone level (5 / 10 / 15 / 20 / 25).
+ * @param {string} badgeName   Human-readable display name.
+ * @param {string} badgeKey    snake_case key, e.g. "seed_pioneer".
+ * @returns {{
+ *   claimed: boolean,           // true = the CURRENT user won it
+ *   alreadyClaimed: boolean,    // true = someone else got there first
+ *   claimedBy: string|null,     // uuid of whoever actually claimed it
+ *   data: object|null,
+ *   error: object|null,
+ * }}
+ */
+export const claimWorldTreeBadge = async (userId, badgeLevel, badgeName, badgeKey) => {
+  try {
+    if (!userId)     throw new Error('claimWorldTreeBadge: userId is required')
+    if (!badgeLevel) throw new Error('claimWorldTreeBadge: badgeLevel is required')
+    if (!badgeName)  throw new Error('claimWorldTreeBadge: badgeName is required')
+    if (!badgeKey)   throw new Error('claimWorldTreeBadge: badgeKey is required')
+
+    const { data, error } = await supabase.rpc('claim_world_tree_badge_atomic', {
+      p_user_id:     userId,
+      p_badge_level: badgeLevel,
+      p_badge_name:  badgeName,
+      p_badge_key:   badgeKey,
+    })
+
+    if (error) throw error
+
+    const result = data // jsonb → JS object
+    if (result.claimed) {
+      return { claimed: true, alreadyClaimed: false, claimedBy: userId, data: result, error: null }
+    } else {
+      return { claimed: false, alreadyClaimed: true, claimedBy: result.already_claimed_by, data: result, error: null }
+    }
+  } catch (error) {
+    console.error('[claimWorldTreeBadge]', error)
+    return { claimed: false, alreadyClaimed: false, claimedBy: null, data: null, error }
+  }
+}
+
+/**
+ * Subscribe to real-time badge claim events.
+ * Fires onClaim whenever ANY user claims a badge.
+ *
+ * @param {function} onClaim  Called with the new row payload:
+ *                             { badge_level, badge_key, badge_name, user_id, claimed_at }
+ * @returns {function}  Call the returned function to unsubscribe.
+ *
+ * Usage:
+ *   const unsub = subscribeToWorldTreeBadges((row) => {
+ *     setBadgeClaims(prev => new Map(prev).set(row.badge_level, row))
+ *   })
+ *   return () => unsub()
+ */
+export const subscribeToWorldTreeBadges = (onClaim) => {
+  const channel = supabase
+    .channel('world-tree-badge-claims')
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'world_tree_badges' },
+      (payload) => {
+        if (payload.new) onClaim(payload.new)
+      }
+    )
+    .subscribe()
+
+  return () => supabase.removeChannel(channel)
+}
+
+/**
+ * Subscribe to live World Tree growth updates.
+ * Fires onGrowth whenever the world_tree row is updated.
+ *
+ * @param {function} onGrowth  Called with { growth, updated_at }.
+ * @returns {function}  Unsubscribe.
+ */
+export const subscribeToWorldTree = (onGrowth) => {
+  const channel = supabase
+    .channel('world-tree-growth')
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'world_tree' },
+      (payload) => {
+        if (payload.new) onGrowth(payload.new)
+      }
+    )
+    .subscribe()
+
+  return () => supabase.removeChannel(channel)
 }
 
 /**
