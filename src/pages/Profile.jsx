@@ -9,7 +9,9 @@ import {
   getFollowers,
   getFollowing,
   getFollowingIds,
+  getClaimedWorldTreeBadges,
 } from "../services/supabase";
+import worldTreeBadges from "../data/worldTreeBadges";
 import { useAuth } from "../contexts/AuthContext";
 import homeBg from "../assets/backgrounds/message.jpg";
 import "./Profile.css";
@@ -124,6 +126,7 @@ export default function Profile() {
   const [followLoading,setFollowLoading]= useState(false);
   const [isOwnProfile, setIsOwnProfile] = useState(true);
   const [recentActivity, setRecentActivity] = useState([]);
+  const [claimedBadges,  setClaimedBadges]  = useState([]);
 
   // Follow sheet
   const [activeList,    setActiveList]    = useState(null);
@@ -187,6 +190,8 @@ export default function Profile() {
       await loadProfile(targetUserId);
       await loadStats(targetUserId);
       await loadRecentActivity(targetUserId);
+      const { data: badgesData } = await getClaimedWorldTreeBadges(targetUserId);
+      setClaimedBadges(badgesData || []);
       const { followers, following: followingCount } = await getFollowCounts(targetUserId);
       setFollowCounts({ followers, following: followingCount });
       if (userId && user && userId !== user.id) {
@@ -483,6 +488,45 @@ export default function Profile() {
             </div>
           ))}
         </div>
+
+        {/* ── WORLD TREE BADGES ── */}
+        <div className="tl-section-header">
+          <span className="tl-section-title">🌳 My World Tree Badges</span>
+        </div>
+
+        {claimedBadges.length === 0 ? (
+          <div className="tl-wtb-empty">🌱 No World Tree badges earned yet</div>
+        ) : (
+          <div className="tl-wtb-row">
+            {claimedBadges.map((badge) => {
+              const meta = worldTreeBadges.find((b) => b.level === badge.badge_level);
+              return (
+                <div key={badge.id} className="tl-wtb-card">
+                  <div className="tl-wtb-glow-ring" />
+                  <div className="tl-wtb-img-wrap">
+                    {meta && (
+                      <img
+                        src={meta.image}
+                        alt={badge.badge_name}
+                        className="tl-wtb-img"
+                      />
+                    )}
+                  </div>
+                  <span className="tl-wtb-name">{badge.badge_name}</span>
+                  <span className="tl-wtb-desc">{meta?.description}</span>
+                  <span className="tl-wtb-date">
+                    Claimed{" "}
+                    {new Date(badge.claimed_at).toLocaleDateString("en-US", {
+                      month: "short",
+                      day:   "numeric",
+                      year:  "numeric",
+                    })}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* ── ACHIEVEMENTS ── */}
         <div className="tl-section-header">

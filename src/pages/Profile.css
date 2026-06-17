@@ -891,3 +891,117 @@
     padding-bottom: calc(130px + env(safe-area-inset-bottom, 0px));
   }
 }
+
+/* ═══════════════════════════════════════════════
+   World Tree Badges
+   ═══════════════════════════════════════════════ */
+
+/* Empty state */
+.tl-wtb-empty {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 14px;
+  padding: 20px 0 24px;
+  letter-spacing: 0.3px;
+}
+
+/* Horizontal scroll gallery */
+.tl-wtb-row {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 4px 4px 16px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.tl-wtb-row::-webkit-scrollbar { display: none; }
+
+/* Badge card */
+.tl-wtb-card {
+  position: relative;
+  flex: 0 0 130px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 10px 14px;
+  background: rgba(124, 92, 255, 0.10);
+  border: 1px solid rgba(124, 92, 255, 0.22);
+  border-radius: 18px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.tl-wtb-card:active {
+  transform: scale(0.97);
+}
+
+/* Ambient glow ring */
+.tl-wtb-glow-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 28px rgba(124, 92, 255, 0.18);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Badge image */
+.tl-wtb-img-wrap {
+  position: relative;
+  z-index: 1;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  filter: drop-shadow(0 0 10px rgba(168, 85, 247, 0.55))
+          drop-shadow(0 0 4px  rgba(168, 85, 247, 0.30));
+  margin-bottom: 2px;
+  flex-shrink: 0;
+}
+.tl-wtb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 50%;
+}
+
+/* Text layers */
+.tl-wtb-name {
+  position: relative;
+  z-index: 1;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #e4d9ff;
+  text-align: center;
+  line-height: 1.2;
+  letter-spacing: 0.2px;
+}
+.tl-wtb-desc {
+  position: relative;
+  z-index: 1;
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.50);
+  text-align: center;
+  line-height: 1.3;
+}
+.tl-wtb-date {
+  position: relative;
+  z-index: 1;
+  font-size: 10px;
+  color: rgba(168, 85, 247, 0.85);
+  text-align: center;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+/* ── World Tree Badge responsive tweaks ── */
+@media (max-width: 480px) {
+  .tl-wtb-card    { flex: 0 0 118px; padding: 14px 8px 12px; }
+  .tl-wtb-img-wrap { width: 62px; height: 62px; }
+  .tl-wtb-name    { font-size: 11.5px; }
+}
+@media (max-width: 400px) {
+  .tl-wtb-card    { flex: 0 0 108px; }
+  .tl-wtb-img-wrap { width: 56px; height: 56px; }
+}
