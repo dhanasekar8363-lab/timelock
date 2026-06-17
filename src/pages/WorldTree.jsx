@@ -382,10 +382,11 @@ function WorldTree() {
 
   const myEntry = contributors.find(c => c.user_id === userId);
 
-  // Compute tree age in days from real created_at, fall back to MOCK
+  // Compute tree age in days from real created_at.
+  // Returns null while data is loading or if created_at is missing.
   const treeAgeDays = treeCreatedAt
     ? Math.max(0, Math.floor((Date.now() - new Date(treeCreatedAt).getTime()) / 86_400_000))
-    : MOCK_COMMUNITY.treeAgeDays;
+    : null;
 
   return (
     <div className="wt-root">
@@ -494,7 +495,9 @@ function WorldTree() {
               </div>
               <div className="wt-stat">
                 <span className="wt-stat-icon">🪾</span>
-                <span className="wt-stat-value">{treeAgeDays}</span>
+                <span className="wt-stat-value">
+                  {dataLoading || treeAgeDays === null ? "…" : treeAgeDays}
+                </span>
                 <span className="wt-stat-label">Days Old</span>
               </div>
             </div>
