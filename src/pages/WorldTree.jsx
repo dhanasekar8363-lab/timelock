@@ -2,6 +2,11 @@ import { useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef, useCallback } from "react";
 import treeImg from "../assets/worldTree/tree.png";
 import worldTreeBg from "../assets/worldTree/world-tree-bg.jpg";
+import seedPioneerBadge from "../assets/badges/seed-pioneer.png";
+import natureGuardianBadge from "../assets/badges/nature-guardian.png";
+import treeKeeperBadge from "../assets/badges/tree-keeper.png";
+import forestProtectorBadge from "../assets/badges/forest-protector.png";
+import memoryGuardianBadge from "../assets/badges/memory-guardian.png";
 import {
   supabase,
   getWorldTree,
@@ -25,12 +30,92 @@ const MOCK_COMMUNITY = {
   treeAgeDays:       94,
 };
 
-const MOCK_NEXT_REWARD = {
-  name:        "Memory Guardian Badge",
-  description: "Awarded to the first person who claims it when Level 25 is reached!",
-  icon:        "🛡️",
-  unlocksAt:   25,
-};
+// World Tree milestone badge progression — Level 5 / 10 / 15 / 20 / 25.
+// Used to drive the dynamic "Next Reward" card.
+const NEXT_REWARD_BADGES = [
+  {
+    level:        5,
+    name:         "Seed Pioneer",
+    description:  "Awarded when World Tree reaches Level 5",
+    image:        seedPioneerBadge,
+    fallbackIcon: "🌱",
+  },
+  {
+    level:        10,
+    name:         "Nature Guardian",
+    description:  "Awarded when World Tree reaches Level 10",
+    image:        natureGuardianBadge,
+    fallbackIcon: "🌿",
+  },
+  {
+    level:        15,
+    name:         "Tree Keeper",
+    description:  "Awarded when World Tree reaches Level 15",
+    image:        treeKeeperBadge,
+    fallbackIcon: "🌳",
+  },
+  {
+    level:        20,
+    name:         "Forest Protector",
+    description:  "Awarded when World Tree reaches Level 20",
+    image:        forestProtectorBadge,
+    fallbackIcon: "🌲",
+  },
+  {
+    level:        25,
+    name:         "Memory Guardian",
+    description:  "Awarded when World Tree reaches Level 25",
+    image:        memoryGuardianBadge,
+    fallbackIcon: "🏆",
+  },
+];
+
+// Full World Tree Rewards roster — same 5 milestone badges as
+// NEXT_REWARD_BADGES, but with a short emoji + flavour line for the
+// Rewards modal's badge grid. Kept as its own constant so the modal's
+// copy can evolve independently from the "Next Reward" card's copy.
+const REWARDS_BADGES = [
+  {
+    level:        5,
+    name:         "Seed Pioneer",
+    emoji:        "🌱",
+    description:  "First guardian of the World Tree",
+    image:        seedPioneerBadge,
+    fallbackIcon: "🌱",
+  },
+  {
+    level:        10,
+    name:         "Nature Guardian",
+    emoji:        "🌿",
+    description:  "Sworn protector of growing things",
+    image:        natureGuardianBadge,
+    fallbackIcon: "🌿",
+  },
+  {
+    level:        15,
+    name:         "Tree Keeper",
+    emoji:        "🌳",
+    description:  "Trusted steward of the World Tree",
+    image:        treeKeeperBadge,
+    fallbackIcon: "🌳",
+  },
+  {
+    level:        20,
+    name:         "Forest Protector",
+    emoji:        "🌲",
+    description:  "Defender of the whole forest realm",
+    image:        forestProtectorBadge,
+    fallbackIcon: "🌲",
+  },
+  {
+    level:        25,
+    name:         "Memory Guardian",
+    emoji:        "🏆",
+    description:  "Keeper of every memory the tree holds",
+    image:        memoryGuardianBadge,
+    fallbackIcon: "🏆",
+  },
+];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function calcLevel(growth) {
@@ -43,6 +128,27 @@ function calcTier(level) {
   if (level >= 10) return "Ancient Sprout";
   if (level >= 5)  return "Young Sapling";
   return "Tiny Seedling";
+}
+
+// Given the current level, find the next badge that hasn't been reached yet.
+// A badge counts as "reached" once level >= badge.level (mirrors the
+// eligibility check used for claiming). Once every badge has been reached,
+// returns the final (highest-level) badge with allBadgesUnlocked: true.
+function getNextReward(currentLevel, badges) {
+  const sorted = [...badges].sort((a, b) => a.level - b.level);
+  if (sorted.length === 0) return { badge: null, allBadgesUnlocked: false };
+  const next = sorted.find((b) => currentLevel < b.level);
+  if (next) return { badge: next, allBadgesUnlocked: false };
+  return { badge: sorted[sorted.length - 1], allBadgesUnlocked: true };
+}
+
+// Finds the next not-yet-unlocked badge level for the Rewards modal's
+// top progress section. Mirrors getNextReward's "reached" rule
+// (currentLevel >= badge.level) but only needs the level number back.
+function getNextRewardLevel(currentLevel, badges) {
+  const sorted = [...badges].sort((a, b) => a.level - b.level);
+  const next = sorted.find((b) => currentLevel < b.level);
+  return next ? next.level : null; // null once every badge is unlocked
 }
 
 // Live countdown formatter — "2h 15m" / "45m" / "Available now"
@@ -123,6 +229,125 @@ function FadeCard({ children, className = "", delay = 0 }) {
       style={{ transitionDelay: `${delay}ms` }}
     >
       {children}
+    </div>
+  );
+}
+
+// ── Reward badge image (with graceful emoji fallback) ──────────────────────────
+function RewardBadgeImage({ badge, locked }) {
+  const [imgError, setImgError] = useState(false);
+
+  if (!badge?.image || imgError) {
+    return (
+      <span className={`wt-reward-shield-icon ${locked ? "wt-reward-shield-icon--dim" : ""}`}>
+        {badge?.fallbackIcon || "🏅"}
+      </span>
+    );
+  }
+
+  return (
+    <img
+      src={badge.image}
+      alt={badge.name}
+      className={`wt-reward-shield-img ${locked ? "wt-reward-shield-img--dim" : ""}`}
+      onError={() => setImgError(true)}
+    />
+  );
+}
+
+// ── Rewards modal: badge artwork (with graceful emoji fallback) ────────────────
+function RewardsCardImage({ badge, unlocked }) {
+  const [imgError, setImgError] = useState(false);
+
+  if (!badge.image || imgError) {
+    return (
+      <span className={`wt-rewards-img-icon ${unlocked ? "" : "wt-rewards-img-icon--dim"}`}>
+        {badge.fallbackIcon}
+      </span>
+    );
+  }
+
+  return (
+    <img
+      src={badge.image}
+      alt={badge.name}
+      className={`wt-rewards-img ${unlocked ? "" : "wt-rewards-img--dim"}`}
+      onError={() => setImgError(true)}
+    />
+  );
+}
+
+// ── Rewards modal: single badge card ────────────────────────────────────────────
+function RewardsBadgeCard({ badge, currentLevel, delay = 0 }) {
+  const unlocked = currentLevel >= badge.level;
+
+  return (
+    <div
+      className={`wt-rewards-card ${unlocked ? "wt-rewards-card--unlocked" : "wt-rewards-card--locked"}`}
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      <div className={`wt-rewards-img-wrap ${unlocked ? "wt-rewards-img-wrap--unlocked" : ""}`}>
+        <div className="wt-rewards-img-glow" aria-hidden="true" />
+        <RewardsCardImage badge={badge} unlocked={unlocked} />
+      </div>
+
+      <div className="wt-rewards-card-body">
+        <p className="wt-rewards-card-name">
+          <span aria-hidden="true">{badge.emoji}</span> {badge.name}
+        </p>
+        <p className="wt-rewards-card-level">Unlocks at Level {badge.level}</p>
+        <p className="wt-rewards-card-desc">{badge.description}</p>
+      </div>
+
+      <div className={`wt-rewards-status ${unlocked ? "wt-rewards-status--unlocked" : "wt-rewards-status--locked"}`}>
+        {unlocked ? "✅ Unlocked" : "🔒 Locked"}
+      </div>
+    </div>
+  );
+}
+
+// ── Rewards modal ─────────────────────────────────────────────────────────────
+function RewardsModal({ level, badges, onClose }) {
+  const nextLevel = getNextRewardLevel(level, badges);
+  const allUnlocked = nextLevel === null;
+  const progressPct = allUnlocked
+    ? 100
+    : Math.max(0, Math.min(100, Math.round((level / nextLevel) * 100)));
+
+  return (
+    <div className="wt-modal-overlay" onClick={onClose}>
+      <div className="wt-modal wt-modal--rewards" onClick={(e) => e.stopPropagation()}>
+        <button className="wt-modal-close" onClick={onClose} aria-label="Close rewards">✕</button>
+        <h2 className="wt-modal-title">🏆 World Tree Rewards</h2>
+
+        {/* Progress section */}
+        <div className="wt-rewards-progress-card">
+          <div className="wt-rewards-progress-top">
+            <span className="wt-rewards-progress-label">Current Tree Level</span>
+            <span className="wt-rewards-progress-level">{level}</span>
+          </div>
+          <div className="wt-rewards-progress-track">
+            <div className="wt-rewards-progress-fill" style={{ width: `${progressPct}%` }} />
+          </div>
+          <p className="wt-rewards-progress-sub">
+            {allUnlocked
+              ? "🏆 All rewards unlocked!"
+              : `Progress to next reward: Level ${level} / ${nextLevel}`}
+          </p>
+        </div>
+
+        {/* Scrollable badge grid */}
+        <div className="wt-rewards-grid">
+          {badges.map((badge, i) => (
+            <RewardsBadgeCard
+              key={badge.level}
+              badge={badge}
+              currentLevel={level}
+              delay={i * 70}
+            />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -404,6 +629,7 @@ function WorldTree() {
   const [dataLoading,   setDataLoading]   = useState(true);
   const [showContributors, setShowContributors] = useState(false);
   const [showHowItWorks,   setShowHowItWorks]   = useState(false);
+  const [showRewards,      setShowRewards]      = useState(false);
   const [treeGlowing,   setTreeGlowing]   = useState(false);
   const [growthAnimating, setGrowthAnimating] = useState(false);
   const [claimedLevels,   setClaimedLevels]   = useState(() => new Set());
@@ -412,6 +638,13 @@ function WorldTree() {
   const tier        = calcTier(level);
   const growthInLvl = growth % GROWTH_PER_LEVEL;
   const progressPct = Math.round((growthInLvl / GROWTH_PER_LEVEL) * 100);
+
+  const { badge: nextBadge, allBadgesUnlocked } = getNextReward(level, NEXT_REWARD_BADGES);
+  const rewardProgressPct = !nextBadge
+    ? 0
+    : allBadgesUnlocked
+      ? 100
+      : Math.max(0, Math.min(100, Math.round((level / nextBadge.level) * 100)));
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -532,7 +765,7 @@ function WorldTree() {
             <span className="wt-side-icon">🌿</span>
             <span>How it<br/>works</span>
           </button>
-          <button className="wt-side-btn">
+          <button className="wt-side-btn" onClick={() => setShowRewards(true)}>
             <span className="wt-side-icon">🎁</span>
             <span>Rewards</span>
           </button>
@@ -705,36 +938,44 @@ function WorldTree() {
           </div>
         </FadeCard>
 
-        {/* 6 ── Reward Card (locked) */}
+        {/* 6 ── Next Reward Card (dynamic) */}
         <FadeCard delay={300}>
           <div className="wt-card wt-card--reward-full">
             <div className="wt-reward-full-top">
               <p className="wt-card-eyebrow" style={{ margin: 0 }}>Next Reward ✨</p>
-              <div className="wt-reward-locked-badge">🔒 Locked</div>
-            </div>
-
-            <div className="wt-reward-full-body">
-              <div className="wt-reward-shield">
-                <div className="wt-reward-shield-glow" aria-hidden="true" />
-                <span className="wt-reward-shield-icon">{MOCK_NEXT_REWARD.icon}</span>
-              </div>
-              <div className="wt-reward-full-info">
-                <p className="wt-reward-name">{MOCK_NEXT_REWARD.name}</p>
-                <p className="wt-reward-desc">{MOCK_NEXT_REWARD.description}</p>
+              <div className={`wt-reward-locked-badge ${allBadgesUnlocked ? "wt-reward-locked-badge--complete" : ""}`}>
+                {allBadgesUnlocked ? "🏆 Completed" : "🔒 Locked"}
               </div>
             </div>
 
-            <div className="wt-reward-progress-wrap">
-              <div className="wt-reward-progress-track">
-                <div
-                  className="wt-reward-progress-fill"
-                  style={{ width: `${Math.min(100, Math.round((level / MOCK_NEXT_REWARD.unlocksAt) * 100))}%` }}
-                />
-              </div>
-              <p className="wt-reward-progress-label">
-                Level {level} / {MOCK_NEXT_REWARD.unlocksAt} — unlocks at Level {MOCK_NEXT_REWARD.unlocksAt}
-              </p>
-            </div>
+            {nextBadge && (
+              <>
+                <div className="wt-reward-full-body">
+                  <div className={`wt-reward-shield ${allBadgesUnlocked ? "wt-reward-shield--complete" : ""}`}>
+                    <div className="wt-reward-shield-glow" aria-hidden="true" />
+                    <RewardBadgeImage badge={nextBadge} locked={!allBadgesUnlocked} />
+                  </div>
+                  <div className="wt-reward-full-info">
+                    <p className="wt-reward-name">{nextBadge.name}</p>
+                    <p className="wt-reward-desc">{nextBadge.description}</p>
+                  </div>
+                </div>
+
+                <div className="wt-reward-progress-wrap">
+                  <div className="wt-reward-progress-track">
+                    <div
+                      className="wt-reward-progress-fill"
+                      style={{ width: `${rewardProgressPct}%` }}
+                    />
+                  </div>
+                  <p className="wt-reward-progress-label">
+                    {allBadgesUnlocked
+                      ? "🏆 All World Tree badges unlocked!"
+                      : `Level ${level} / ${nextBadge.level} — Unlocks at Level ${nextBadge.level}`}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </FadeCard>
 
@@ -822,6 +1063,15 @@ function WorldTree() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── World Tree Rewards Modal ── */}
+      {showRewards && (
+        <RewardsModal
+          level={level}
+          badges={REWARDS_BADGES}
+          onClose={() => setShowRewards(false)}
+        />
       )}
     </div>
   );

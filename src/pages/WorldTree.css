@@ -679,6 +679,13 @@
   padding: 4px 10px;
 }
 
+/* Completed state — every badge has been reached */
+.wt-reward-locked-badge--complete {
+  color: rgba(134, 239, 172, 0.9);
+  background: rgba(16, 90, 50, 0.55);
+  border-color: rgba(74, 222, 128, 0.35);
+}
+
 .wt-reward-full-body {
   display: flex;
   align-items: center;
@@ -697,7 +704,13 @@
   align-items: center;
   justify-content: center;
   box-shadow: 0 0 24px rgba(168, 85, 247, 0.55);
-  filter: grayscale(40%) brightness(0.8);
+  transition: box-shadow 0.6s ease, background 0.6s ease;
+}
+
+/* Completed state — full color, golden glow */
+.wt-reward-shield--complete {
+  background: linear-gradient(135deg, #b45309, #f59e0b, #fbbf24);
+  box-shadow: 0 0 28px rgba(250, 204, 21, 0.6);
 }
 
 .wt-reward-shield-glow {
@@ -709,7 +722,20 @@
   pointer-events: none;
 }
 
-.wt-reward-shield-icon { font-size: 32px; filter: grayscale(1); }
+.wt-reward-shield-icon { font-size: 32px; transition: opacity 0.6s ease; }
+.wt-reward-shield-icon--dim { opacity: 0.6; }
+
+/* Actual badge artwork shown inside the shield circle.
+   Always renders in full, true color — locked state is conveyed with a
+   subtle opacity reduction only, never grayscale. */
+.wt-reward-shield-img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  filter: brightness(1.4);
+  transition: opacity 0.6s ease;
+}
+.wt-reward-shield-img--dim { opacity: 0.6; }
 
 .wt-reward-full-info { flex: 1; }
 
@@ -1394,4 +1420,256 @@
   color: #a3e635;
   font-weight: 600;
   margin-top: 2px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   World Tree Rewards Modal
+   Opened from the 🎁 Rewards side button. Reuses .wt-modal-overlay /
+   .wt-modal / .wt-modal-close / .wt-modal-title from the existing modal
+   system; everything below is scoped to the rewards-specific content so
+   none of the other modals (Top Contributors, How It Works) are affected.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Taller sheet so the badge grid has room to breathe + its own internal
+   scroll area, while still sliding up from the bottom like the other
+   modals. max-height keeps it usable on short mobile viewports. */
+.wt-modal--rewards {
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 28px;
+}
+
+/* ── Progress section (top of modal) ───────────────────────────────────── */
+.wt-rewards-progress-card {
+  flex-shrink: 0;
+  background: rgba(50, 10, 100, 0.5);
+  border: 1px solid rgba(160, 80, 255, 0.3);
+  border-radius: 16px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.wt-rewards-progress-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.wt-rewards-progress-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(200, 160, 255, 0.65);
+}
+
+.wt-rewards-progress-level {
+  font-size: 22px;
+  font-weight: 900;
+  color: #f0d8ff;
+  text-shadow: 0 0 16px rgba(192, 132, 252, 0.6);
+}
+
+.wt-rewards-progress-track {
+  height: 10px;
+  background: rgba(30, 5, 70, 0.65);
+  border: 1px solid rgba(160, 80, 255, 0.22);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.wt-rewards-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #7c3aed, #c084fc, #f0abfc);
+  border-radius: 6px;
+  transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 10px rgba(192, 132, 252, 0.6);
+}
+
+.wt-rewards-progress-sub {
+  margin: 0;
+  font-size: 12px;
+  text-align: center;
+  color: rgba(216, 180, 255, 0.75);
+  font-weight: 600;
+}
+
+/* ── Scrollable badge grid ──────────────────────────────────────────────── */
+.wt-rewards-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 2px;
+  /* a little breathing room so the last card's glow isn't clipped */
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.wt-rewards-grid::-webkit-scrollbar { width: 5px; }
+.wt-rewards-grid::-webkit-scrollbar-track { background: transparent; }
+.wt-rewards-grid::-webkit-scrollbar-thumb {
+  background: rgba(160, 80, 255, 0.35);
+  border-radius: 4px;
+}
+
+/* ── Individual badge card ──────────────────────────────────────────────── */
+.wt-rewards-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: rgba(40, 8, 84, 0.6);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(160, 80, 255, 0.22);
+  border-radius: 18px;
+  padding: 12px 14px;
+  box-shadow: 0 4px 18px rgba(80, 0, 160, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  opacity: 0;
+  transform: translateY(14px);
+  animation: wt-rewards-card-in 0.45s cubic-bezier(0.34, 1.2, 0.64, 1) forwards;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+@keyframes wt-rewards-card-in {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Unlocked cards get a touch more glow + a faint golden border to read as
+   "achieved" without breaking from the purple glass theme. */
+.wt-rewards-card--unlocked {
+  border-color: rgba(250, 204, 21, 0.28);
+  box-shadow: 0 4px 20px rgba(80, 0, 160, 0.2), 0 0 0 1px rgba(250, 204, 21, 0.06) inset,
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.wt-rewards-card--locked { opacity: 0.92; }
+
+/* Badge artwork circle, same visual language as .wt-reward-shield but
+   sized for a horizontal list row instead of the hero "Next Reward" card. */
+.wt-rewards-img-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #5b21b6, #7c3aed, #a855f7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 16px rgba(168, 85, 247, 0.45);
+  transition: box-shadow 0.5s ease, background 0.5s ease;
+}
+
+.wt-rewards-img-wrap--unlocked {
+  background: linear-gradient(135deg, #b45309, #f59e0b, #fbbf24);
+  box-shadow: 0 0 20px rgba(250, 204, 21, 0.55);
+}
+
+.wt-rewards-img-glow {
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.3) 0%, transparent 70%);
+  animation: wt-glow-pulse 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.wt-rewards-img-wrap--unlocked .wt-rewards-img-glow {
+  background: radial-gradient(circle, rgba(250, 204, 21, 0.35) 0%, transparent 70%);
+}
+
+.wt-rewards-img {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  filter: brightness(1.4);
+  transition: opacity 0.5s ease;
+}
+
+.wt-rewards-img--dim { opacity: 0.55; }
+
+.wt-rewards-img-icon {
+  font-size: 24px;
+  transition: opacity 0.5s ease;
+}
+
+.wt-rewards-img-icon--dim { opacity: 0.55; }
+
+/* Text body */
+.wt-rewards-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.wt-rewards-card-name {
+  margin: 0 0 3px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #f0d8ff;
+  line-height: 1.25;
+}
+
+.wt-rewards-card-level {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(232, 121, 249, 0.7);
+}
+
+.wt-rewards-card-desc {
+  margin: 0;
+  font-size: 11.5px;
+  color: rgba(200, 160, 255, 0.55);
+  line-height: 1.4;
+}
+
+/* Status pill */
+.wt-rewards-status {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+  align-self: center;
+}
+
+.wt-rewards-status--locked {
+  color: rgba(200, 160, 255, 0.6);
+  background: rgba(60, 10, 120, 0.5);
+  border: 1px solid rgba(160, 80, 255, 0.25);
+}
+
+.wt-rewards-status--unlocked {
+  color: rgba(134, 239, 172, 0.95);
+  background: rgba(16, 90, 50, 0.55);
+  border: 1px solid rgba(74, 222, 128, 0.4);
+}
+
+/* ── Mobile fine-tuning ─────────────────────────────────────────────────── */
+@media (max-width: 380px) {
+  .wt-rewards-card { gap: 10px; padding: 10px 12px; }
+  .wt-rewards-img-wrap { width: 48px; height: 48px; }
+  .wt-rewards-img { width: 36px; height: 36px; }
+  .wt-rewards-status { font-size: 10px; padding: 4px 8px; }
+}
+
+/* ── Reduced motion: respect the user's existing preference setup ───────── */
+@media (prefers-reduced-motion: reduce) {
+  .wt-rewards-card {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .wt-rewards-img-glow {
+    animation: none !important;
+  }
 }
