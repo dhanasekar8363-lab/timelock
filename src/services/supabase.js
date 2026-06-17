@@ -1069,6 +1069,102 @@ export const awardCapsuleSent = (userId, capsuleId) =>
 export const awardCapsuleOpened = (userId, capsuleId) =>
   awardTreeGrowth(userId, 'open_capsule', GROWTH_REWARDS.OPEN_CAPSULE, capsuleId)
 
+// ==================== WORLD TREE BADGE FUNCTIONS ====================
+//
+// SQL to create the table (run once in the Supabase SQL editor):
+//
+//   CREATE TABLE IF NOT EXISTS public.world_tree_badges (
+//     id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+//     user_id     uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+//     badge_level integer NOT NULL,
+//     badge_name  text NOT NULL,
+//     claimed_at  timestamptz NOT NULL DEFAULT now(),
+//     UNIQUE (user_id, badge_level)
+//   );
+//
+//   -- Allow a user to insert their own rows and read all rows
+//   ALTER TABLE public.world_tree_badges ENABLE ROW LEVEL SECURITY;
+//
+//   CREATE POLICY "Users can claim their own badges"
+//     ON public.world_tree_badges FOR INSERT
+//     TO authenticated
+//     WITH CHECK (auth.uid() = user_id);
+//
+//   CREATE POLICY "Anyone can read claimed badges"
+//     ON public.world_tree_badges FOR SELECT
+//     TO authenticated
+//     USING (true);
+
+/**
+ * Claim a World Tree milestone badge for the current user.
+ *
+ * Inserts a row into `world_tree_badges`. The UNIQUE(user_id, badge_level)
+ * constraint prevents double-claims at the DB level; a 23505 duplicate-key
+ * error is treated as "already claimed" and returned as `alreadyClaimed: true`
+ * rather than a hard error.
+ *
+ * @param {string} userId      Authenticated user's UUID.
+ * @param {number} badgeLevel  Milestone level (5 / 10 / 15 / 20 / 25).
+ * @param {string} badgeName   Human-readable badge name.
+ * @returns {{ data: object|null, error: object|null, alreadyClaimed: boolean }}
+ */
+export const claimWorldTreeBadge = async (userId, badgeLevel, badgeName) => {
+  try {
+    if (!userId)     throw new Error('claimWorldTreeBadge: userId is required')
+    if (!badgeLevel) throw new Error('claimWorldTreeBadge: badgeLevel is required')
+    if (!badgeName)  throw new Error('claimWorldTreeBadge: badgeName is required')
+
+    const { data, error } = await supabase
+      .from('world_tree_badges')
+      .insert({
+        user_id:     userId,
+        badge_level: badgeLevel,
+        badge_name:  badgeName,
+        claimed_at:  new Date().toISOString(),
+      })
+      .select()
+      .single()
+
+    if (error) {
+      // Unique-constraint violation → already claimed
+      if (error.code === '23505') {
+        return { data: null, error: null, alreadyClaimed: true }
+      }
+      throw error
+    }
+
+    return { data, error: null, alreadyClaimed: false }
+  } catch (error) {
+    console.error('[claimWorldTreeBadge]', error)
+    return { data: null, error, alreadyClaimed: false }
+  }
+}
+
+/**
+ * Fetch all World Tree badges already claimed by a user.
+ *
+ * @param {string} userId  Authenticated user's UUID.
+ * @returns {{ data: Array<{ id, user_id, badge_level, badge_name, claimed_at }>, error }}
+ *          `data` is an empty array when the user has no badges yet.
+ */
+export const getClaimedWorldTreeBadges = async (userId) => {
+  try {
+    if (!userId) return { data: [], error: null }
+
+    const { data, error } = await supabase
+      .from('world_tree_badges')
+      .select('id, user_id, badge_level, badge_name, claimed_at')
+      .eq('user_id', userId)
+      .order('badge_level', { ascending: true })
+
+    if (error) throw error
+    return { data: data || [], error: null }
+  } catch (error) {
+    console.error('[getClaimedWorldTreeBadges]', error)
+    return { data: [], error }
+  }
+}
+
 /**
  * Return the top N contributors, joined with their profile display name
  * and avatar.  The leaderboard is all-time (sum of contribution column).

@@ -8,9 +8,12 @@ import {
   feedWorldTree,
   getRemainingFeedTime,
   getTopContributors,
+  claimWorldTreeBadge,
+  getClaimedWorldTreeBadges,
   GROWTH_REWARDS,
   FEED_COOLDOWN_MS,
 } from "../services/supabase";
+import worldTreeBadges from "../data/worldTreeBadges";
 import "./WorldTree.css";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -309,6 +312,86 @@ function FeedSection({ userId, onFed, treeGlowing }) {
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
+
+// ── Badge Claim Section ────────────────────────────────────────────
+function BadgeClaimSection({ userId, level, claimedLevels, onClaimed }) {
+  const eligibleBadges = worldTreeBadges.filter((b) => level >= b.level);
+  if (eligibleBadges.length === 0) return null;
+
+  return (
+    <div className="wt-badge-claim-section">
+      {eligibleBadges.map((badge) => {
+        const isClaimed = claimedLevels.has(badge.level);
+        return (
+          <BadgeClaimRow
+            key={badge.level}
+            badge={badge}
+            userId={userId}
+            isClaimed={isClaimed}
+            onClaimed={onClaimed}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function BadgeClaimRow({ badge, userId, isClaimed, onClaimed }) {
+  const [claiming,  setClaiming]  = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [error,     setError]     = useState(null);
+
+  const handleClaim = async () => {
+    if (!userId || isClaimed || claiming) return;
+    setError(null);
+    setClaiming(true);
+    const { error: claimError, alreadyClaimed } = await claimWorldTreeBadge(
+      userId,
+      badge.level,
+      badge.name,
+    );
+    setClaiming(false);
+    if (claimError) { setError("Could not claim badge. Try again."); return; }
+    onClaimed(badge.level);
+    if (!alreadyClaimed) {
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    }
+  };
+
+  return (
+    <div className={`wt-badge-row ${isClaimed ? "wt-badge-row--claimed" : "wt-badge-row--available"}`}>
+      <div className={`wt-badge-toast ${showToast ? "wt-badge-toast--visible" : ""}`} aria-live="polite">
+        🏅 Badge claimed: {badge.name}!
+      </div>
+      <div className="wt-badge-img-wrap">
+        {badge.image ? (
+          <img src={badge.image} alt={badge.name} className="wt-badge-img" />
+        ) : (
+          <span className="wt-badge-emoji">🏅</span>
+        )}
+        {isClaimed && <span className="wt-badge-check" aria-label="Claimed">✓</span>}
+      </div>
+      <div className="wt-badge-info">
+        <p className="wt-badge-name">{badge.name}</p>
+        <p className="wt-badge-desc">{badge.description}</p>
+        {error && <p className="wt-badge-error">{error}</p>}
+      </div>
+      <button
+        className={`wt-claim-btn ${isClaimed ? "wt-claim-btn--claimed" : ""}`}
+        onClick={handleClaim}
+        disabled={isClaimed || claiming || !userId}
+        aria-label={isClaimed ? `${badge.name} already claimed` : `Claim ${badge.name} badge`}
+      >
+        {!userId   ? "🔒 Log in" :
+         claiming  ? "Claiming…" :
+         isClaimed ? "✓ Claimed" :
+                     "🏅 Claim Badge"}
+      </button>
+    </div>
+  );
+}
+
 function WorldTree() {
   const navigate = useNavigate();
 
@@ -323,6 +406,7 @@ function WorldTree() {
   const [showHowItWorks,   setShowHowItWorks]   = useState(false);
   const [treeGlowing,   setTreeGlowing]   = useState(false);
   const [growthAnimating, setGrowthAnimating] = useState(false);
+  const [claimedLevels,   setClaimedLevels]   = useState(() => new Set());
 
   const level       = calcLevel(growth);
   const tier        = calcTier(level);
@@ -358,6 +442,14 @@ function WorldTree() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // Load claimed badges whenever the user changes
+  useEffect(() => {
+    if (!userId) { setClaimedLevels(new Set()); return; }
+    getClaimedWorldTreeBadges(userId).then(({ data }) => {
+      if (data) setClaimedLevels(new Set(data.map((b) => b.badge_level)));
+    });
+  }, [userId]);
+
   useEffect(() => {
     if (!userId || contributors.length === 0) return;
     const me = contributors.find(c => c.user_id === userId);
@@ -378,6 +470,10 @@ function WorldTree() {
       setContributors(data.slice(0, 10));
       setTotalContributors(data.length);
     }
+  }, []);
+
+  const handleBadgeClaimed = useCallback((badgeLevel) => {
+    setClaimedLevels((prev) => new Set([...prev, badgeLevel]));
   }, []);
 
   const myEntry = contributors.find(c => c.user_id === userId);
@@ -474,7 +570,27 @@ function WorldTree() {
         </FadeCard>
 
 
-        {/* 3 ── Community Stats */}
+        {/* 3 ── Badge Claim */}
+        {!dataLoading && (
+          <FadeCard delay={90}>
+            <div className="wt-card">
+              <p className="wt-card-eyebrow">🏅 Milestone Badges</p>
+              <BadgeClaimSection
+                userId={userId}
+                level={level}
+                claimedLevels={claimedLevels}
+                onClaimed={handleBadgeClaimed}
+              />
+              {level < 5 && (
+                <p className="wt-badge-hint">
+                  🌱 Badges unlock when the tree reaches Level 5, 10, 15, 20, and 25.
+                </p>
+              )}
+            </div>
+          </FadeCard>
+        )}
+
+        {/* 4 ── Community Stats */}
         <FadeCard delay={120}>
           <div className="wt-card">
             <p className="wt-card-eyebrow">🌍 Community Stats</p>
