@@ -314,6 +314,8 @@ function WorldTree() {
 
   const [userId,        setUserId]        = useState(null);
   const [growth,        setGrowth]        = useState(0);
+  const [treeCreatedAt, setTreeCreatedAt] = useState(null);
+  const [totalContributors, setTotalContributors] = useState(0);
   const [contributors,  setContributors]  = useState([]);
   const [myContrib,     setMyContrib]     = useState(0);
   const [dataLoading,   setDataLoading]   = useState(true);
@@ -341,10 +343,16 @@ function WorldTree() {
     setDataLoading(true);
     const [treeRes, contribRes] = await Promise.all([
       getWorldTree(),
-      getTopContributors(10),
+      getTopContributors(50),
     ]);
-    if (treeRes.data)    setGrowth(treeRes.data.growth);
-    if (contribRes.data) setContributors(contribRes.data);
+    if (treeRes.data) {
+      setGrowth(treeRes.data.growth);
+      setTreeCreatedAt(treeRes.data.created_at ?? null);
+    }
+    if (contribRes.data) {
+      setContributors(contribRes.data.slice(0, 10));
+      setTotalContributors(contribRes.data.length);
+    }
     setDataLoading(false);
   }, []);
 
@@ -365,11 +373,19 @@ function WorldTree() {
 
     setGrowth(newGrowth);
     setMyContrib(prev => prev + (amountAdded ?? GROWTH_REWARDS.FEED_TREE));
-    const { data } = await getTopContributors(10);
-    if (data) setContributors(data);
+    const { data } = await getTopContributors(50);
+    if (data) {
+      setContributors(data.slice(0, 10));
+      setTotalContributors(data.length);
+    }
   }, []);
 
   const myEntry = contributors.find(c => c.user_id === userId);
+
+  // Compute tree age in days from real created_at, fall back to MOCK
+  const treeAgeDays = treeCreatedAt
+    ? Math.max(0, Math.floor((Date.now() - new Date(treeCreatedAt).getTime()) / 86_400_000))
+    : MOCK_COMMUNITY.treeAgeDays;
 
   return (
     <div className="wt-root">
@@ -456,7 +472,36 @@ function WorldTree() {
           <FeedSection userId={userId} onFed={handleFed} treeGlowing={treeGlowing} />
         </FadeCard>
 
-        {/* 3 ── Contribution Section: My Contribution + Global Growth */}
+
+        {/* 3 ── Community Stats */}
+        <FadeCard delay={120}>
+          <div className="wt-card">
+            <p className="wt-card-eyebrow">🌍 Community Stats</p>
+            <div className="wt-stats-grid">
+              <div className="wt-stat">
+                <span className="wt-stat-icon">👥</span>
+                <span className="wt-stat-value">
+                  {dataLoading ? "…" : totalContributors > 0 ? totalContributors.toLocaleString() : MOCK_COMMUNITY.totalContributors.toLocaleString()}
+                </span>
+                <span className="wt-stat-label">Contributors</span>
+              </div>
+              <div className="wt-stat">
+                <span className="wt-stat-icon">🌱</span>
+                <span className="wt-stat-value">
+                  {dataLoading ? "…" : growth.toLocaleString()}
+                </span>
+                <span className="wt-stat-label">Total Growth</span>
+              </div>
+              <div className="wt-stat">
+                <span className="wt-stat-icon">🪾</span>
+                <span className="wt-stat-value">{treeAgeDays}</span>
+                <span className="wt-stat-label">Days Old</span>
+              </div>
+            </div>
+          </div>
+        </FadeCard>
+
+        {/* 4 ── Contribution Section: My Contribution + Global Growth */}
         <FadeCard delay={120}>
           <div className="wt-card">
             <p className="wt-card-eyebrow">📊 Contributions</p>
@@ -488,15 +533,15 @@ function WorldTree() {
                   {growth >= 1000 ? `${(growth / 1000).toFixed(1)}k` : growth.toLocaleString()} <span className="wt-leaf">🌱</span>
                 </p>
                 <div className="wt-contrib-stat-sub">
-                  <span>{MOCK_COMMUNITY.totalContributors.toLocaleString()} contributors</span>
+                  <span>{totalContributors > 0 ? totalContributors.toLocaleString() : MOCK_COMMUNITY.totalContributors.toLocaleString()} contributors</span>
                 </div>
               </div>
             </div>
           </div>
         </FadeCard>
 
-        {/* 4 ── Top 10 Leaderboard */}
-        <FadeCard delay={180}>
+        {/* 5 ── Top 10 Leaderboard */}
+        <FadeCard delay={240}>
           <div className="wt-card">
             <div className="wt-contrib-header">
               <p className="wt-card-eyebrow" style={{ margin: 0 }}>
@@ -541,8 +586,8 @@ function WorldTree() {
           </div>
         </FadeCard>
 
-        {/* 5 ── Reward Card (locked) */}
-        <FadeCard delay={240}>
+        {/* 6 ── Reward Card (locked) */}
+        <FadeCard delay={300}>
           <div className="wt-card wt-card--reward-full">
             <div className="wt-reward-full-top">
               <p className="wt-card-eyebrow" style={{ margin: 0 }}>Next Reward ✨</p>
@@ -574,13 +619,26 @@ function WorldTree() {
           </div>
         </FadeCard>
 
-        {/* 6 ── Footer card */}
-        <FadeCard delay={300}>
-          <div className="wt-card wt-card--footer">
-            <span className="wt-footer-plant">🌱</span>
-            <p className="wt-footer-title">Every action grows the tree!</p>
-            <p className="wt-footer-desc">Send capsules, open memories, help the tree thrive.</p>
-            <button className="wt-home-btn" onClick={() => navigate("/")}>🏠 Go to Home</button>
+        {/* 7 ── Bottom two-column: Your Contribution + Footer CTA */}
+        <FadeCard delay={360}>
+          <div className="wt-bottom-row">
+            {/* Your Contribution card */}
+            <div className="wt-card wt-card--your-contrib">
+              <p className="wt-card-eyebrow" style={{ marginBottom: 8 }}>Your Contribution</p>
+              <div className="wt-your-contrib-icon">🌱</div>
+              <p className="wt-your-contrib-value">
+                {myContrib.toLocaleString()} <span className="wt-leaf">🌱</span>
+              </p>
+              <p className="wt-stat-label" style={{ marginTop: 4 }}>Total Growth</p>
+              {!userId && <p className="wt-contrib-login-hint">Log in to track</p>}
+            </div>
+            {/* Footer CTA card */}
+            <div className="wt-card wt-card--footer">
+              <span className="wt-footer-plant">🌱</span>
+              <p className="wt-footer-title">Every action grows the tree!</p>
+              <p className="wt-footer-desc">Send capsules, open memories, help the tree thrive.</p>
+              <button className="wt-home-btn" onClick={() => navigate("/")}>🏠 Go to Home</button>
+            </div>
           </div>
         </FadeCard>
 
