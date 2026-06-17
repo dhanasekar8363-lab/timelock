@@ -699,7 +699,9 @@
   width: 72px;
   height: 72px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #5b21b6, #7c3aed, #a855f7);
+  /* dark neutral bg so badge PNG colours render true — purple gradient was
+     bleeding through transparent areas and muddying the artwork */
+  background: rgba(15, 5, 35, 0.85);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -720,6 +722,7 @@
   background: radial-gradient(circle, rgba(168, 85, 247, 0.35) 0%, transparent 70%);
   animation: wt-glow-pulse 3s ease-in-out infinite;
   pointer-events: none;
+  z-index: 1; /* behind the badge image */
 }
 
 .wt-reward-shield-icon { font-size: 32px; transition: opacity 0.6s ease; }
@@ -729,13 +732,16 @@
    Always renders in full, true color — locked state is conveyed with a
    subtle opacity reduction only, never grayscale. */
 .wt-reward-shield-img {
-  width: 56px;
-  height: 56px;
+  width: 68px;         /* nearly fills the 72px circle for maximum clarity */
+  height: 68px;
   object-fit: contain;
-  filter: brightness(1.4);
+  position: relative;
+  z-index: 2;          /* above .wt-reward-shield-glow */
+  /* removed: filter: brightness(1.4) — was bleaching the artwork */
   transition: opacity 0.6s ease;
 }
-.wt-reward-shield-img--dim { opacity: 0.6; }
+/* raised from 0.6 → 0.85 so the locked badge is still clearly visible */
+.wt-reward-shield-img--dim { opacity: 0.85; }
 
 .wt-reward-full-info { flex: 1; }
 
@@ -1560,7 +1566,8 @@
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #5b21b6, #7c3aed, #a855f7);
+  /* dark neutral bg so badge PNG colours render true */
+  background: rgba(15, 5, 35, 0.85);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1580,6 +1587,7 @@
   background: radial-gradient(circle, rgba(168, 85, 247, 0.3) 0%, transparent 70%);
   animation: wt-glow-pulse 3s ease-in-out infinite;
   pointer-events: none;
+  z-index: 1; /* behind the badge image */
 }
 
 .wt-rewards-img-wrap--unlocked .wt-rewards-img-glow {
@@ -1587,14 +1595,17 @@
 }
 
 .wt-rewards-img {
-  width: 42px;
-  height: 42px;
+  width: 50px;         /* nearly fills the 56px wrap; was 42px */
+  height: 50px;
   object-fit: contain;
-  filter: brightness(1.4);
+  position: relative;
+  z-index: 2;          /* above .wt-rewards-img-glow */
+  /* removed: filter: brightness(1.4) — was bleaching the artwork */
   transition: opacity 0.5s ease;
 }
 
-.wt-rewards-img--dim { opacity: 0.55; }
+/* raised from 0.55 → 0.85 so locked badges are still clearly legible */
+.wt-rewards-img--dim { opacity: 0.85; }
 
 .wt-rewards-img-icon {
   font-size: 24px;
