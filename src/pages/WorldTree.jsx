@@ -290,10 +290,10 @@ function MemoryStormBanner({ ratePerSecond, msRemaining }) {
   );
 }
 
-// ── Community / Storm / Total growth breakdown card ────────────────────────────
-function StormGrowthCard({ communityGrowth, stormGrowth, totalGrowth, isStormActive }) {
-  const roundedStorm = Math.round(stormGrowth);
-  const roundedTotal = Math.round(totalGrowth);
+// ── Community / Storm / Effective growth breakdown card ───────────────────────
+function StormGrowthCard({ communityGrowth, stormGrowth, effectiveGrowth, isStormActive }) {
+  const roundedStorm     = Math.round(stormGrowth);
+  const roundedEffective = Math.round(effectiveGrowth);
 
   return (
     <div className={`wt-card wt-storm-stats-card ${isStormActive ? "storm-active" : ""}`}>
@@ -312,9 +312,9 @@ function StormGrowthCard({ communityGrowth, stormGrowth, totalGrowth, isStormAct
           </span>
         </div>
         <div className="wt-storm-stat wt-storm-stat--total">
-          <span className="wt-storm-stat-label">Total Growth</span>
+          <span className="wt-storm-stat-label">Effective Growth</span>
           <span className="wt-storm-stat-value wt-storm-stat-value--total">
-            {roundedTotal.toLocaleString()}
+            {roundedEffective.toLocaleString()}
           </span>
         </div>
       </div>
@@ -822,18 +822,6 @@ function WorldTree() {
   const [claimedLevels,   setClaimedLevels]   = useState(() => new Set());
   const [globalBadgeClaims, setGlobalBadgeClaims] = useState(() => new Map());
 
-  const level       = calcLevel(growth);
-  const tier        = calcTier(level);
-  const growthInLvl = growth % GROWTH_PER_LEVEL;
-  const progressPct = Math.round((growthInLvl / GROWTH_PER_LEVEL) * 100);
-
-  const { badge: nextBadge, allBadgesUnlocked } = getNextReward(level, NEXT_REWARD_BADGES);
-  const rewardProgressPct = !nextBadge
-    ? 0
-    : allBadgesUnlocked
-      ? 100
-      : Math.max(0, Math.min(100, Math.round((level / nextBadge.level) * 100)));
-
   // ── Memory Storm state (powered by stormService) ──────────────────────────
   // activeStorm  – the current storm row from Supabase, or null
   // stormGrowth  – bonus growth accumulated so far this storm (whole number)
@@ -883,7 +871,23 @@ function WorldTree() {
   // When it expires the banner hides automatically — no extra state needed.
   const isStormActive      = !!activeStorm && stormTimeLeft > 0;
   const stormRatePerSecond = getStormRatePerSecond(activeStorm);
-  const totalGrowthLive    = growth + stormGrowth;
+
+  // ── Effective growth: community (Supabase) + storm (computed, never written) ──
+  // All progression — level, progress bar, reward unlocks, badge milestones —
+  // is driven by effectiveGrowth. `growth` (community only) is never mutated.
+  const effectiveGrowth = growth + stormGrowth;
+
+  const level       = calcLevel(effectiveGrowth);
+  const tier        = calcTier(level);
+  const growthInLvl = effectiveGrowth % GROWTH_PER_LEVEL;
+  const progressPct = Math.round((growthInLvl / GROWTH_PER_LEVEL) * 100);
+
+  const { badge: nextBadge, allBadgesUnlocked } = getNextReward(level, NEXT_REWARD_BADGES);
+  const rewardProgressPct = !nextBadge
+    ? 0
+    : allBadgesUnlocked
+      ? 100
+      : Math.max(0, Math.min(100, Math.round((level / nextBadge.level) * 100)));
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -1120,7 +1124,7 @@ function WorldTree() {
           <StormGrowthCard
             communityGrowth={growth}
             stormGrowth={stormGrowth}
-            totalGrowth={totalGrowthLive}
+            effectiveGrowth={effectiveGrowth}
             isStormActive={isStormActive}
           />
         </FadeCard>
@@ -1169,7 +1173,7 @@ function WorldTree() {
                 <span className="wt-stat-value">
                   {dataLoading ? "…" : growth.toLocaleString()}
                 </span>
-                <span className="wt-stat-label">Total Growth</span>
+                <span className="wt-stat-label">Community Growth</span>
               </div>
               <div className="wt-stat">
                 <span className="wt-stat-icon">🪾</span>
