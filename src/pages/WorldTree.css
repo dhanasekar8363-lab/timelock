@@ -942,10 +942,19 @@
 }
 
 .wt-modal-title {
-  margin: 0 0 20px;
+  margin: 0 0 4px;
   font-size: 18px;
   font-weight: 800;
   color: #e8d8ff;
+}
+
+/* Rewards modal subtitle */
+.wt-modal-subtitle {
+  margin: 0 0 18px;
+  font-size: 11px;
+  color: rgba(200, 160, 255, 0.55);
+  font-weight: 500;
+  letter-spacing: 0.03em;
 }
 
 .wt-modal-list {
@@ -1436,14 +1445,36 @@
    none of the other modals (Top Contributors, How It Works) are affected.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Taller sheet so the badge grid has room to breathe + its own internal
-   scroll area, while still sliding up from the bottom like the other
-   modals. max-height keeps it usable on short mobile viewports. */
+/* Rewards modal: centered floating panel */
 .wt-modal--rewards {
-  max-height: 86vh;
+  max-height: 88vh;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   padding-bottom: 28px;
+  max-width: 1100px;
+  width: calc(100vw - 48px);
+  border-radius: 20px;
+  border-bottom: 1px solid rgba(160, 80, 255, 0.35);
+}
+
+/* Center the modal in the viewport */
+.wt-modal-overlay:has(.wt-modal--rewards) {
+  align-items: center;
+}
+
+/* Mobile: bottom sheet */
+@media (max-width: 620px) {
+  .wt-modal--rewards {
+    max-width: 100%;
+    width: 100%;
+    border-radius: 24px 24px 0 0;
+    border-bottom: none;
+    max-height: 92vh;
+  }
+  .wt-modal-overlay:has(.wt-modal--rewards) {
+    align-items: flex-end;
+  }
 }
 
 /* ── Progress section (top of modal) ───────────────────────────────────── */
@@ -1480,9 +1511,9 @@
 }
 
 .wt-rewards-progress-track {
-  height: 10px;
+  height: 11px;
   background: rgba(30, 5, 70, 0.65);
-  border: 1px solid rgba(160, 80, 255, 0.22);
+  border: 1px solid rgba(170, 90, 255, 0.45);
   border-radius: 6px;
   overflow: hidden;
   margin-bottom: 8px;
@@ -1493,7 +1524,7 @@
   background: linear-gradient(90deg, #7c3aed, #c084fc, #f0abfc);
   border-radius: 6px;
   transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 0 10px rgba(192, 132, 252, 0.6);
+  box-shadow: 0 0 12px rgba(216, 150, 255, 0.75);
 }
 
 .wt-rewards-progress-sub {
@@ -1504,18 +1535,21 @@
   font-weight: 600;
 }
 
-/* ── Scrollable badge grid ──────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════════
+   MMORPG Square Badge Grid — replaces the old horizontal-list layout
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── Responsive badge grid ──────────────────────────────────────────────
+   Desktop (>1200px): 5 across, full milestone path visible at once.
+   Tablet  (768-1200px): 3 across, cards stay roomy and legible.
+   Mobile  (<768px): 2 across, large readable cards instead of a cramped row.
+   ─────────────────────────────────────────────────────────────────────── */
 .wt-rewards-grid {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding-right: 2px;
-  /* a little breathing room so the last card's glow isn't clipped */
-  padding-bottom: 4px;
-  -webkit-overflow-scrolling: touch;
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+  padding: 6px 4px 4px;
 }
 
 .wt-rewards-grid::-webkit-scrollbar { width: 5px; }
@@ -1525,165 +1559,593 @@
   border-radius: 4px;
 }
 
-/* ── Individual badge card ──────────────────────────────────────────────── */
-.wt-rewards-card {
+/* Tablet: 3 cards per row */
+@media (max-width: 1200px) {
+  .wt-rewards-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+}
+
+/* Mobile: 2 cards per row, cards get room to breathe again */
+@media (max-width: 768px) {
+  .wt-rewards-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   wt-rwc — Premium MMORPG achievement badge card
+   ══════════════════════════════════════════════════════════════════ */
+.wt-rwc {
   position: relative;
+  min-width: 0;
   display: flex;
-  align-items: center;
-  gap: 14px;
-  background: rgba(40, 8, 84, 0.6);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(160, 80, 255, 0.22);
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  /* Deep MMORPG dark — near-black with purple tint */
+  background: linear-gradient(165deg,
+    rgba(26, 8, 62, 0.94) 0%,
+    rgba(11, 2, 34, 0.97) 50%,
+    rgba(18, 5, 52, 0.95) 100%);
+  backdrop-filter: blur(28px) saturate(1.3);
+  -webkit-backdrop-filter: blur(28px) saturate(1.3);
+  border: 1px solid rgba(170, 90, 255, 0.45);
   border-radius: 18px;
-  padding: 12px 14px;
-  box-shadow: 0 4px 18px rgba(80, 0, 160, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  padding: 0 0 8px 0;
+  overflow: hidden;
   opacity: 0;
-  transform: translateY(14px);
-  animation: wt-rewards-card-in 0.45s cubic-bezier(0.34, 1.2, 0.64, 1) forwards;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  transform: translateY(18px) scale(0.97);
+  animation: wt-rwc-in 0.55s cubic-bezier(0.34, 1.2, 0.64, 1) forwards;
+  transition: border-color 0.25s ease, box-shadow 0.3s ease, transform 0.22s cubic-bezier(0.34,1.4,0.64,1);
+  box-shadow:
+    0 1px 0 rgba(220, 170, 255, 0.16) inset,
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 8px 36px rgba(40, 0, 100, 0.75),
+    0 0 0 1px rgba(120, 40, 220, 0.22),
+    0 0 22px rgba(140, 60, 255, 0.22);
+  cursor: default;
 }
 
-@keyframes wt-rewards-card-in {
-  to { opacity: 1; transform: translateY(0); }
+@keyframes wt-rwc-in {
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* Unlocked cards get a touch more glow + a faint golden border to read as
-   "achieved" without breaking from the purple glass theme. */
-.wt-rewards-card--unlocked {
-  border-color: rgba(250, 204, 21, 0.28);
-  box-shadow: 0 4px 20px rgba(80, 0, 160, 0.2), 0 0 0 1px rgba(250, 204, 21, 0.06) inset,
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+/* Premium hover lift */
+.wt-rwc:hover {
+  transform: translateY(-7px) scale(1.03);
+  border-color: rgba(210, 140, 255, 0.95);
+  box-shadow:
+    0 1px 0 rgba(230, 190, 255, 0.22) inset,
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+    0 20px 56px rgba(80, 0, 200, 0.70),
+    0 0 42px rgba(178, 95, 255, 0.55),
+    0 0 0 1.5px rgba(210, 140, 255, 0.35);
 }
 
-.wt-rewards-card--locked { opacity: 0.92; }
+/* ── Unlocked state ─────────────────────────────────────────────── */
+.wt-rwc--unlocked {
+  border-color: rgba(251, 191, 36, 0.65);
+  background: linear-gradient(160deg,
+    rgba(58, 22, 6, 0.88) 0%,
+    rgba(32, 9, 4, 0.93) 50%,
+    rgba(48, 15, 4, 0.88) 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 230, 120, 0.18) inset,
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 8px 36px rgba(180, 90, 0, 0.45),
+    0 0 26px rgba(251, 191, 36, 0.22);
+}
 
-/* Badge artwork circle, same visual language as .wt-reward-shield but
-   sized for a horizontal list row instead of the hero "Next Reward" card. */
-.wt-rewards-img-wrap {
+.wt-rwc--unlocked:hover {
+  border-color: rgba(253, 210, 70, 0.95);
+  box-shadow:
+    0 1px 0 rgba(255, 235, 150, 0.24) inset,
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+    0 20px 60px rgba(200, 110, 0, 0.60),
+    0 0 48px rgba(251, 191, 36, 0.45);
+}
+
+/* Gold shimmer line across top of unlocked card */
+.wt-rwc--unlocked::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(251, 204, 21, 0.8) 30%,
+    rgba(255, 240, 120, 1.0) 50%,
+    rgba(251, 204, 21, 0.8) 70%,
+    transparent 100%);
+  border-radius: 18px 18px 0 0;
+  z-index: 10;
+}
+
+/* ── Locked state — full vibrant color, just subtle depth ───────── */
+.wt-rwc--locked {
+  opacity: 1;
+}
+
+/* Purple shimmer line across top of locked card */
+.wt-rwc--locked::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent,
+    rgba(200, 120, 255, 0.90) 50%,
+    transparent);
+  border-radius: 18px 18px 0 0;
+  z-index: 10;
+}
+
+/* Remove diagonal texture — it darkens the card unnecessarily */
+.wt-rwc--locked::after {
+  display: none;
+}
+
+/* ── Ambient glow ring ──────────────────────────────────────────── */
+.wt-rwc-glow-ring {
+  display: none;
+}
+
+/* ── Badge image wrapper ────────────────────────────────────────── */
+.wt-rwc-img-wrap {
   position: relative;
-  flex-shrink: 0;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  /* dark neutral bg so badge PNG colours render true */
-  background: rgba(15, 5, 35, 0.85);
+  z-index: 2;
+  width: 100%;
+  height: 122px;
+  border-radius: 0;
+  /* Deep dark well — badge pops against near-black */
+  background:
+    radial-gradient(ellipse 70% 82% at 50% 50%,
+      rgba(60, 15, 140, 0.28) 0%,
+      rgba(12, 2, 38, 0.70) 55%,
+      rgba(4, 1, 12, 0.92) 100%);
+  border: none;
+  border-bottom: 1px solid rgba(160, 80, 255, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 16px rgba(168, 85, 247, 0.45);
-  transition: box-shadow 0.5s ease, background 0.5s ease;
+  margin-bottom: 0;
+  flex-shrink: 0;
+  overflow: visible;
+  transition: background 0.35s ease;
 }
 
-.wt-rewards-img-wrap--unlocked {
-  background: linear-gradient(135deg, #b45309, #f59e0b, #fbbf24);
-  box-shadow: 0 0 20px rgba(250, 204, 21, 0.55);
+/* Glow intensifies on hover through parent */
+.wt-rwc:hover .wt-rwc-img-wrap {
+  background:
+    radial-gradient(ellipse 70% 82% at 50% 50%,
+      rgba(80, 25, 180, 0.35) 0%,
+      rgba(18, 4, 52, 0.72) 55%,
+      rgba(4, 1, 12, 0.90) 100%);
 }
 
-.wt-rewards-img-glow {
-  position: absolute;
-  inset: -5px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.3) 0%, transparent 70%);
-  animation: wt-glow-pulse 3s ease-in-out infinite;
-  pointer-events: none;
-  z-index: 1; /* behind the badge image */
+.wt-rwc-img-wrap--unlocked {
+  background:
+    radial-gradient(ellipse 70% 82% at 50% 50%,
+      rgba(120, 55, 5, 0.38) 0%,
+      rgba(30, 8, 2, 0.80) 55%,
+      rgba(4, 1, 1, 0.94) 100%);
+  border-bottom-color: rgba(251, 180, 20, 0.45);
 }
 
-.wt-rewards-img-wrap--unlocked .wt-rewards-img-glow {
-  background: radial-gradient(circle, rgba(250, 204, 21, 0.35) 0%, transparent 70%);
+.wt-rwc--unlocked:hover .wt-rwc-img-wrap {
+  background:
+    radial-gradient(ellipse 74% 84% at 50% 50%,
+      rgba(160, 75, 5, 0.45) 0%,
+      rgba(45, 14, 2, 0.80) 55%,
+      rgba(4, 1, 1, 0.92) 100%);
 }
 
-.wt-rewards-img {
-  width: 50px;         /* nearly fills the 56px wrap; was 42px */
-  height: 50px;
+/* Badge artwork — THE primary visual focus, fills the well edge-to-edge */
+.wt-rewards-img--large {
+  width: 102%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  max-width: 152px;
+  max-height: 152px;
   object-fit: contain;
   position: relative;
-  z-index: 2;          /* above .wt-rewards-img-glow */
-  /* removed: filter: brightness(1.4) — was bleaching the artwork */
-  transition: opacity 0.5s ease;
+  z-index: 3;
+  transition: filter 0.35s ease, transform 0.25s ease;
+  filter:
+    drop-shadow(0 0 12px rgba(180, 100, 255, 0.65))
+    drop-shadow(0 0 5px rgba(220, 160, 255, 0.45))
+    brightness(1.18)
+    contrast(1.10);
 }
 
-/* raised from 0.55 → 0.85 so locked badges are still clearly legible */
-.wt-rewards-img--dim { opacity: 0.85; }
-
-.wt-rewards-img-icon {
-  font-size: 24px;
-  transition: opacity 0.5s ease;
+/* Locked = full vivid color, very slight desaturation only */
+.wt-rewards-img--dim {
+  filter:
+    drop-shadow(0 0 6px rgba(140, 70, 220, 0.45))
+    drop-shadow(0 0 2px rgba(180, 120, 255, 0.30))
+    brightness(1.05)
+    saturate(0.90);
+  opacity: 1;
 }
 
-.wt-rewards-img-icon--dim { opacity: 0.55; }
+/* Hover: badge lifts and glow sharpens */
+.wt-rwc:hover .wt-rewards-img--large {
+  filter:
+    drop-shadow(0 0 18px rgba(210, 140, 255, 0.80))
+    drop-shadow(0 0 7px rgba(245, 200, 255, 0.55))
+    brightness(1.25)
+    contrast(1.12);
+  transform: scale(1.08) translateY(-5px);
+}
 
-/* Text body */
-.wt-rewards-card-body {
+.wt-rewards-img-icon--large {
+  font-size: 110px;
+  line-height: 1;
+  filter: drop-shadow(0 0 10px rgba(180, 100, 255, 0.55));
+  transition: filter 0.3s ease, transform 0.25s ease;
+}
+
+.wt-rwc:hover .wt-rewards-img-icon--large {
+  filter: drop-shadow(0 0 18px rgba(220, 150, 255, 0.80));
+  transform: scale(1.06) translateY(-3px);
+}
+
+.wt-rewards-img-icon--dim {
+  opacity: 0.85;
+  filter: drop-shadow(0 0 8px rgba(140, 70, 200, 0.45)) saturate(0.85);
+}
+
+/* ── Card text body ─────────────────────────────────────────────── */
+.wt-rwc-body {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 10px 0;
+  z-index: 2;
+  flex: 1;
+}
+
+.wt-rwc-name {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fbf5ff;
+  text-align: center;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  text-shadow: 0 0 12px rgba(200, 140, 255, 0.45);
+}
+
+.wt-rwc-desc {
+  margin: 0;
+  font-size: 10.5px;
+  color: rgba(228, 205, 255, 0.82);
+  text-align: center;
+  line-height: 1.35;
+  /* Single line only — keeps the badge as the visual focus, not the copy */
+  height: calc(10.5px * 1.35);
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Unlock level box — base (quiet label, not a competing focal point) ── */
+.wt-rwc-level-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  background: rgba(20, 4, 50, 0.55);
+  border: 1px solid rgba(130, 55, 200, 0.22);
+  border-radius: 7px;
+  padding: 2px 8px;
+  width: 100%;
+  margin-top: 0;
+  box-shadow: none;
+}
+
+/* ── Level 5 — Green ────────────────────────────────────────────── */
+.wt-rwc-level-box--lv5 {
+  background: rgba(4, 28, 12, 0.50);
+  border-color: rgba(52, 211, 120, 0.30);
+  box-shadow: none;
+}
+.wt-rwc-level-box--lv5 .wt-rwc-level-label { color: rgba(134, 239, 150, 0.50); }
+.wt-rwc-level-box--lv5 .wt-rwc-level-num   { color: #4ade80; text-shadow: 0 0 6px rgba(74, 222, 128, 0.40); }
+
+/* ── Level 10 — Purple ──────────────────────────────────────────── */
+.wt-rwc-level-box--lv10 {
+  background: rgba(18, 4, 50, 0.50);
+  border-color: rgba(168, 85, 247, 0.32);
+  box-shadow: none;
+}
+.wt-rwc-level-box--lv10 .wt-rwc-level-label { color: rgba(200, 155, 255, 0.50); }
+.wt-rwc-level-box--lv10 .wt-rwc-level-num   { color: #c084fc; text-shadow: 0 0 6px rgba(192, 132, 252, 0.45); }
+
+/* ── Level 15 — Orange ──────────────────────────────────────────── */
+.wt-rwc-level-box--lv15 {
+  background: rgba(28, 10, 2, 0.50);
+  border-color: rgba(249, 115, 22, 0.28);
+  box-shadow: none;
+}
+.wt-rwc-level-box--lv15 .wt-rwc-level-label { color: rgba(253, 186, 116, 0.50); }
+.wt-rwc-level-box--lv15 .wt-rwc-level-num   { color: #fb923c; text-shadow: 0 0 6px rgba(249, 115, 22, 0.40); }
+
+/* ── Level 20 — Cyan ────────────────────────────────────────────── */
+.wt-rwc-level-box--lv20 {
+  background: rgba(2, 20, 28, 0.50);
+  border-color: rgba(34, 211, 238, 0.26);
+  box-shadow: none;
+}
+.wt-rwc-level-box--lv20 .wt-rwc-level-label { color: rgba(103, 232, 249, 0.50); }
+.wt-rwc-level-box--lv20 .wt-rwc-level-num   { color: #22d3ee; text-shadow: 0 0 6px rgba(34, 211, 238, 0.40); }
+
+/* ── Level 25 — Pink ────────────────────────────────────────────── */
+.wt-rwc-level-box--lv25 {
+  background: rgba(28, 4, 22, 0.50);
+  border-color: rgba(236, 72, 153, 0.28);
+  box-shadow: none;
+}
+.wt-rwc-level-box--lv25 .wt-rwc-level-label { color: rgba(249, 168, 212, 0.50); }
+.wt-rwc-level-box--lv25 .wt-rwc-level-num   { color: #f472b6; text-shadow: 0 0 6px rgba(236, 72, 153, 0.40); }
+
+/* ── Unlocked override (golden) ─────────────────────────────────── */
+.wt-rwc-level-box--unlocked {
+  background: rgba(30, 12, 2, 0.65) !important;
+  border-color: rgba(251, 180, 20, 0.38) !important;
+  box-shadow: none !important;
+}
+.wt-rwc-level-box--unlocked .wt-rwc-level-label { color: rgba(253, 210, 100, 0.55) !important; }
+.wt-rwc-level-box--unlocked .wt-rwc-level-num   { color: #fbbf24 !important; text-shadow: 0 0 8px rgba(251, 191, 36, 0.55) !important; }
+
+.wt-rwc-level-label {
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(200, 155, 255, 0.55);
+}
+
+.wt-rwc-level-num {
+  font-size: 12px;
+  font-weight: 800;
+  color: #c084fc;
+  text-shadow: 0 0 6px rgba(192, 132, 252, 0.45);
+  line-height: 1.1;
+}
+
+.wt-rwc-level-num--golden {
+  color: #fbbf24;
+  text-shadow: 0 0 8px rgba(251, 191, 36, 0.55);
+}
+
+/* ── Progress bar ───────────────────────────────────────────────── */
+.wt-rwc-progress {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+  margin-top: 0;
+}
+
+.wt-rwc-progress-track {
+  width: 100%;
+  height: 7px;
+  background: rgba(6, 1, 20, 0.95);
+  border-radius: 5px;
+  overflow: hidden;
+  border: 1px solid rgba(150, 80, 255, 0.55);
+}
+
+.wt-rwc-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #7c3aed, #a855f7, #f0abfc);
+  border-radius: 5px;
+  transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 12px rgba(216, 110, 255, 0.90), 0 0 5px rgba(168, 85, 247, 1.0);
+  position: relative;
+  overflow: hidden;
+}
+
+.wt-rwc-progress-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent);
+  animation: wt-shimmer 2.5s ease-in-out infinite;
+}
+
+.wt-rwc-progress-fill--unlocked {
+  background: linear-gradient(90deg, #b45309, #f59e0b, #fef08a);
+  box-shadow: 0 0 12px rgba(253, 224, 71, 0.90), 0 0 5px rgba(251, 191, 36, 1.0);
+}
+
+.wt-rwc-progress-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: rgba(220, 195, 255, 0.85);
+  letter-spacing: 0.02em;
+}
+
+/* ── Status pill ────────────────────────────────────────────────── */
+.wt-rwc-status {
+  margin: 3px 10px 0;
+  width: calc(100% - 20px);
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 20px;
+  letter-spacing: 0.03em;
+  z-index: 2;
+}
+
+.wt-rwc-status--locked {
+  color: rgba(200, 150, 255, 0.75);
+  background: rgba(14, 3, 36, 0.88);
+  border: 1px solid rgba(130, 55, 210, 0.50);
+  box-shadow:
+    inset 0 1px 0 rgba(180, 100, 255, 0.08),
+    0 0 8px rgba(100, 30, 180, 0.20);
+}
+
+.wt-rwc-status--unlocked {
+  color: rgba(134, 239, 172, 1.0);
+  background: rgba(8, 70, 36, 0.70);
+  border: 1px solid rgba(74, 222, 128, 0.48);
+  text-shadow: 0 0 10px rgba(74, 222, 128, 0.50);
+  box-shadow: 0 0 12px rgba(74, 222, 128, 0.15);
+}
+
+/* ── Responsive tweaks ─────────────────────────────────────────────────
+   Cards drop to 3-across (tablet) and 2-across (mobile) instead of
+   staying squeezed at 5, so columns are wider per-card — but badge
+   wells still scale down a touch to keep proportions tight and the
+   badge art reading as the focal point rather than ballooning.
+   ───────────────────────────────────────────────────────────────────── */
+@media (max-width: 1200px) {
+  .wt-rwc-img-wrap { height: 132px; }
+  .wt-rewards-img--large { width: 100%; max-width: 148px; max-height: 148px; }
+}
+
+@media (max-width: 768px) {
+  .wt-rwc-img-wrap { height: 126px; }
+  .wt-rewards-img--large { width: 100%; max-width: 138px; max-height: 138px; }
+  .wt-rwc-name { font-size: 13px; }
+  .wt-rwc-desc { font-size: 10.5px; height: calc(10.5px * 1.35); }
+  .wt-rwc-level-num { font-size: 12px; }
+  .wt-rwc-status { font-size: 10px; }
+}
+
+@media (max-width: 480px) {
+  .wt-rwc { border-radius: 14px; }
+  .wt-rwc-img-wrap { height: 100px; }
+  .wt-rewards-img--large { width: 100%; max-width: 94px; max-height: 94px; }
+  .wt-rwc-body { padding: 7px 8px 0; gap: 4px; }
+  .wt-rwc-name { font-size: 11px; letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .wt-rwc-desc { font-size: 8.5px; height: calc(8.5px * 1.35); }
+  .wt-rwc-level-box { padding: 2px 6px; }
+  .wt-rwc-level-label { font-size: 7px; }
+  .wt-rwc-level-num { font-size: 11px; }
+  .wt-rwc-status { font-size: 8.5px; padding: 3px 6px; margin: 2px 8px 0; width: calc(100% - 16px); }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   wt-rewards-info-banner — Compact MMORPG footer info panel
+   ══════════════════════════════════════════════════════════════════ */
+.wt-rewards-info-banner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 14px 16px;
+  background: linear-gradient(110deg,
+    rgba(14, 4, 45, 0.96) 0%,
+    rgba(22, 8, 65, 0.92) 55%,
+    rgba(8, 2, 28, 0.98) 100%);
+  border: 1px solid rgba(120, 60, 220, 0.38);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 rgba(160, 90, 255, 0.08),
+    0 4px 24px rgba(60, 10, 140, 0.35);
+}
+
+/* No left accent — reference image is clean */
+.wt-rewards-info-banner::before {
+  display: none;
+}
+
+.wt-rewards-info-star {
+  font-size: 22px;
+  flex-shrink: 0;
+  /* Blue star matching reference */
+  filter: drop-shadow(0 0 8px rgba(80, 160, 255, 0.80)) hue-rotate(200deg) saturate(1.5);
+  line-height: 1;
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+.wt-rewards-info-text {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.wt-rewards-card-name {
-  margin: 0 0 3px;
-  font-size: 14px;
-  font-weight: 700;
-  color: #f0d8ff;
+.wt-rewards-info-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.01em;
   line-height: 1.25;
 }
 
-.wt-rewards-card-level {
-  margin: 0 0 4px;
-  font-size: 11px;
-  font-weight: 600;
-  color: rgba(232, 121, 249, 0.7);
-}
-
-.wt-rewards-card-desc {
+.wt-rewards-info-desc {
   margin: 0;
-  font-size: 11.5px;
-  color: rgba(200, 160, 255, 0.55);
-  line-height: 1.4;
+  font-size: 10.5px;
+  color: rgba(200, 170, 255, 0.70);
+  line-height: 1.55;
+  /* Allow two lines to show fully */
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
 }
 
-/* Status pill */
-.wt-rewards-status {
+.wt-rewards-info-tree-deco {
   flex-shrink: 0;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 5px 10px;
-  border-radius: 20px;
-  white-space: nowrap;
-  align-self: center;
+  width: 90px;
+  height: 90px;
+  object-fit: contain;
+  opacity: 0.95;
+  filter:
+    drop-shadow(0 0 18px rgba(140, 60, 255, 0.75))
+    drop-shadow(0 0 6px rgba(80, 20, 180, 0.50));
+  /* Overflow bottom edge slightly for visual depth */
+  margin-bottom: -14px;
+  margin-top: -14px;
+  align-self: flex-end;
 }
 
-.wt-rewards-status--locked {
-  color: rgba(200, 160, 255, 0.6);
-  background: rgba(60, 10, 120, 0.5);
-  border: 1px solid rgba(160, 80, 255, 0.25);
-}
-
-.wt-rewards-status--unlocked {
-  color: rgba(134, 239, 172, 0.95);
-  background: rgba(16, 90, 50, 0.55);
-  border: 1px solid rgba(74, 222, 128, 0.4);
-}
-
-/* ── Mobile fine-tuning ─────────────────────────────────────────────────── */
-@media (max-width: 380px) {
-  .wt-rewards-card { gap: 10px; padding: 10px 12px; }
-  .wt-rewards-img-wrap { width: 48px; height: 48px; }
-  .wt-rewards-img { width: 36px; height: 36px; }
-  .wt-rewards-status { font-size: 10px; padding: 4px 8px; }
-}
-
-/* ── Reduced motion: respect the user's existing preference setup ───────── */
+/* ── Reduced motion ─────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  .wt-rewards-card {
+  .wt-rwc {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
   }
-  .wt-rewards-img-glow {
+  .wt-rwc-glow-ring,
+  .wt-rwc-progress-fill::after {
     animation: none !important;
   }
 }
+
+/* ── Keep old .wt-rewards-img / .wt-rewards-img-icon for non-large uses ── */
+.wt-rewards-img {
+  width: 50px;
+  height: 50px;
+  object-fit: contain;
+  position: relative;
+  z-index: 2;
+  transition: opacity 0.5s ease;
+}
+.wt-rewards-img-icon {
+  font-size: 24px;
+  transition: opacity 0.5s ease;
+}
+.wt-rewards-img-icon--dim { opacity: 0.55; }
 
 /* ============================================================
    WorldTree.css ADDITIONS — Badge Race System
@@ -1754,3 +2216,235 @@
 
 /* ── World Tree section: ensure FloatingBadge can be positioned ──────────── */
 /* .wt-tree-section already has position: relative in the existing CSS. */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MEMORY STORM — event banner, live counters, growth breakdown, storm fx
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Event banner (above the tree) ─────────────────────────────────────── */
+.wt-storm-banner {
+  position: relative;
+  z-index: 6;
+  margin: 14px 14px 0;
+  padding: 14px 16px;
+  border-radius: 18px;
+  text-align: center;
+  background: linear-gradient(135deg, rgba(76, 12, 150, 0.65), rgba(140, 30, 220, 0.45));
+  border: 1px solid rgba(216, 140, 255, 0.55);
+  box-shadow: 0 0 24px rgba(168, 85, 247, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  overflow: hidden;
+  animation: wt-storm-banner-pulse 2.6s ease-in-out infinite;
+}
+
+.wt-storm-banner-glow {
+  position: absolute;
+  inset: -40%;
+  background: radial-gradient(circle at 50% 30%, rgba(216, 140, 255, 0.35) 0%, transparent 65%);
+  animation: wt-storm-glow-pulse 2.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes wt-storm-banner-pulse {
+  0%, 100% {
+    box-shadow: 0 0 24px rgba(168, 85, 247, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    border-color: rgba(216, 140, 255, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 46px rgba(216, 140, 255, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    border-color: rgba(232, 180, 255, 0.85);
+  }
+}
+
+.wt-storm-banner-title {
+  position: relative;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #fdf4ff;
+  text-shadow: 0 0 14px rgba(216, 140, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.wt-storm-banner-icon {
+  font-size: 18px;
+  display: inline-block;
+  animation: wt-storm-icon-spin 3.2s linear infinite;
+}
+
+@keyframes wt-storm-icon-spin {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.wt-storm-banner-rate {
+  position: relative;
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #f0d9ff;
+}
+
+.wt-storm-banner-countdown {
+  position: relative;
+  margin: 4px 0 0;
+  font-size: 20px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: #ffffff;
+  text-shadow: 0 0 16px rgba(232, 121, 249, 0.8);
+}
+
+.wt-storm-banner-remaining {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: rgba(240, 217, 255, 0.75);
+  text-shadow: none;
+  margin-left: 2px;
+}
+
+/* ── Storm Growth breakdown card ───────────────────────────────────────── */
+.wt-storm-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.wt-storm-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: rgba(50, 10, 100, 0.45);
+  border: 1px solid rgba(160, 80, 255, 0.18);
+  border-radius: 14px;
+  padding: 12px 6px;
+  transition: background 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease;
+}
+
+.wt-storm-stat-label {
+  font-size: 9px;
+  color: rgba(200, 160, 255, 0.55);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-align: center;
+}
+
+.wt-storm-stat-value {
+  font-size: 17px;
+  font-weight: 900;
+  color: #e879f9;
+  line-height: 1;
+}
+
+.wt-storm-stat--storm {
+  background: rgba(120, 20, 200, 0.4);
+  border-color: rgba(216, 140, 255, 0.45);
+  box-shadow: 0 0 18px rgba(168, 85, 247, 0.35);
+}
+
+.wt-storm-stat-value--storm {
+  color: #f0abfc;
+  text-shadow: 0 0 12px rgba(232, 121, 249, 0.6);
+}
+
+.wt-storm-stat--total {
+  background: rgba(35, 60, 100, 0.35);
+  border-color: rgba(120, 170, 255, 0.25);
+}
+
+.wt-storm-stat-value--total {
+  color: #93c5fd;
+}
+
+.wt-storm-stats-card.storm-active {
+  border-color: rgba(216, 140, 255, 0.55) !important;
+  box-shadow: 0 4px 24px rgba(80, 0, 160, 0.22), 0 0 32px rgba(168, 85, 247, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+}
+
+/* ── Tree storm glow (persistent, while a storm is active) ────────────────
+   Layered alongside the existing feed-glow pulse — both classes can be
+   present at once without conflicting since they animate different
+   properties at different speeds. */
+.wt-tree-glow--storm {
+  animation: wt-storm-glow-loop 2.4s ease-in-out infinite !important;
+  background: radial-gradient(circle, rgba(180, 70, 255, 0.4) 0%, transparent 70%) !important;
+}
+
+@keyframes wt-storm-glow-loop {
+  0%, 100% { opacity: 0.8; transform: translate(-50%, -50%) scale(1.05); }
+  50%       { opacity: 1;   transform: translate(-50%, -50%) scale(1.22); }
+}
+
+.wt-tree-img--storm {
+  filter:
+    drop-shadow(0 0 46px rgba(216, 140, 255, 0.95))
+    drop-shadow(0 0 90px rgba(150, 50, 255, 0.7))
+    drop-shadow(0 0 140px rgba(110, 20, 220, 0.5)) !important;
+}
+
+/* If a feed-pulse happens to fire mid-storm, let the brighter storm glow win */
+.wt-tree-img--storm.wt-tree-img--glow {
+  animation: wt-tree-float 5s ease-in-out infinite, wt-storm-img-pulse 2.4s ease-in-out infinite !important;
+}
+
+@keyframes wt-storm-img-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 46px rgba(216, 140, 255, 0.95)) drop-shadow(0 0 90px rgba(150, 50, 255, 0.7));
+  }
+  50% {
+    filter: drop-shadow(0 0 70px rgba(232, 180, 255, 1)) drop-shadow(0 0 130px rgba(180, 80, 255, 0.85));
+  }
+}
+
+/* ── Storm particles — magical purple swirl ────────────────────────────── */
+.wt-storm-particles {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.wt-storm-particle {
+  position: absolute;
+  color: #e9b8ff;
+  opacity: 0;
+  filter: drop-shadow(0 0 6px rgba(216, 140, 255, 0.9));
+  animation-name: wt-storm-swirl;
+  animation-timing-function: ease-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes wt-storm-swirl {
+  0%   { transform: translate(0, 0) rotate(0deg) scale(0.7);                       opacity: 0; }
+  12%  { opacity: 1; }
+  50%  { transform: translate(var(--storm-dx, 10px), -34px) rotate(180deg) scale(1); opacity: 0.9; }
+  100% { transform: translate(calc(var(--storm-dx, 10px) * 2), -72px) rotate(360deg) scale(0.6); opacity: 0; }
+}
+
+/* ── Root-level storm ambience ──────────────────────────────────────────
+   Tints the existing starfield purple rather than replacing it, so the
+   original twinkle pattern is preserved. */
+.wt-root.storm-active .wt-bg-stars {
+  filter: hue-rotate(15deg) saturate(1.6) brightness(1.25);
+}
+
+/* ── Reduced motion: keep storm fx calm too ────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .wt-storm-banner,
+  .wt-storm-banner-glow,
+  .wt-storm-banner-icon,
+  .wt-storm-particle,
+  .wt-tree-glow--storm,
+  .wt-tree-img--storm {
+    animation: none !important;
+  }
+}

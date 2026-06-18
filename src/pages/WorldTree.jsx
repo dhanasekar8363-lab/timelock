@@ -21,6 +21,11 @@ import {
   GROWTH_REWARDS,
   FEED_COOLDOWN_MS,
 } from "../services/supabase";
+import {
+  getActiveStorm,
+  calculateStormGrowth,
+  getStormTimeLeft,
+} from "../services/stormService";
 import worldTreeBadges from "../data/worldTreeBadges";
 import FloatingBadge from "../components/FloatingBadge";
 import "./WorldTree.css";
@@ -173,6 +178,33 @@ function formatRemaining(ms) {
   return `${seconds}s`;
 }
 
+// ── Memory Storm display helpers ────────────────────────────────────────────
+// Storm data is fetched and computed via stormService (getActiveStorm,
+// calculateStormGrowth, getStormTimeLeft). Only the rate-per-second reader
+// lives here — it's used solely for the banner's "+N Growth / Second" label.
+function getStormRatePerSecond(storm) {
+  if (!storm) return 0;
+  // growth_per_second is the canonical column name (see stormService.js);
+  // the extra fallbacks guard against minor schema variations.
+  const rate =
+    storm.growth_per_second ??
+    storm.rate_per_second ??
+    storm.growth_rate ??
+    storm.rate ??
+    0;
+  return Number(rate) || 0;
+}
+
+// hh:mm:ss countdown formatter, matching the spec's "01:42:15 Remaining"
+function formatStormCountdown(ms) {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(h)}:${pad(m)}:${pad(s)}`;
+}
+
 // ── Stable particles ───────────────────────────────────────────────────────────
 const PARTICLES = Array.from({ length: 22 }, (_, i) => ({
   id:       i,
@@ -202,6 +234,90 @@ function Particles() {
           {p.symbol}
         </span>
       ))}
+    </div>
+  );
+}
+
+// ── Storm particles — magical purple swirl, only rendered during a storm ──────
+const STORM_PARTICLES = Array.from({ length: 16 }, (_, i) => ({
+  id:       i,
+  left:     `${(i * 6.1 + 6) % 100}%`,
+  top:      `${(i * 7.9 + 10) % 78}%`,
+  size:     (i % 4) + 6,
+  delay:    (i * 0.27) % 4,
+  duration: (i % 3) + 2.5,
+  dx:       `${((i % 5) - 2) * 14}px`,
+  symbol:   ["✨", "🌀", "⚡", "💜"][i % 4],
+}));
+
+function StormParticles() {
+  return (
+    <div className="wt-storm-particles" aria-hidden="true">
+      {STORM_PARTICLES.map((p) => (
+        <span
+          key={p.id}
+          className="wt-storm-particle"
+          style={{
+            left:              p.left,
+            top:               p.top,
+            fontSize:          `${p.size}px`,
+            animationDelay:    `${p.delay}s`,
+            animationDuration: `${p.duration}s`,
+            "--storm-dx":      p.dx,
+          }}
+        >
+          {p.symbol}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// ── Memory Storm event banner ──────────────────────────────────────────────────
+function MemoryStormBanner({ ratePerSecond, msRemaining }) {
+  return (
+    <div className="wt-storm-banner storm-active" role="status" aria-live="polite">
+      <div className="wt-storm-banner-glow" aria-hidden="true" />
+      <p className="wt-storm-banner-title">
+        <span className="wt-storm-banner-icon" aria-hidden="true">🌪</span>
+        MEMORY STORM ACTIVE
+      </p>
+      <p className="wt-storm-banner-rate">+{ratePerSecond.toLocaleString()} Growth / Second</p>
+      <p className="wt-storm-banner-countdown">
+        {formatStormCountdown(msRemaining)} <span className="wt-storm-banner-remaining">Remaining</span>
+      </p>
+    </div>
+  );
+}
+
+// ── Community / Storm / Total growth breakdown card ────────────────────────────
+function StormGrowthCard({ communityGrowth, stormGrowth, totalGrowth, isStormActive }) {
+  const roundedStorm = Math.round(stormGrowth);
+  const roundedTotal = Math.round(totalGrowth);
+
+  return (
+    <div className={`wt-card wt-storm-stats-card ${isStormActive ? "storm-active" : ""}`}>
+      <p className="wt-card-eyebrow">
+        {isStormActive ? "🌪 Storm Growth" : "🌱 Growth Breakdown"}
+      </p>
+      <div className="wt-storm-stats-grid">
+        <div className="wt-storm-stat">
+          <span className="wt-storm-stat-label">Community Growth</span>
+          <span className="wt-storm-stat-value">{communityGrowth.toLocaleString()}</span>
+        </div>
+        <div className={`wt-storm-stat ${isStormActive ? "wt-storm-stat--storm" : ""}`}>
+          <span className="wt-storm-stat-label">Storm Growth</span>
+          <span className="wt-storm-stat-value wt-storm-stat-value--storm">
+            {roundedStorm.toLocaleString()}
+          </span>
+        </div>
+        <div className="wt-storm-stat wt-storm-stat--total">
+          <span className="wt-storm-stat-label">Total Growth</span>
+          <span className="wt-storm-stat-value wt-storm-stat-value--total">
+            {roundedTotal.toLocaleString()}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -265,12 +381,15 @@ function RewardBadgeImage({ badge, locked }) {
 }
 
 // ── Rewards modal: badge artwork (with graceful emoji fallback) ────────────────
-function RewardsCardImage({ badge, unlocked }) {
+function RewardsCardImage({ badge, unlocked, large = false }) {
   const [imgError, setImgError] = useState(false);
 
   if (!badge.image || imgError) {
     return (
-      <span className={`wt-rewards-img-icon ${unlocked ? "" : "wt-rewards-img-icon--dim"}`}>
+      <span
+        className={`wt-rewards-img-icon ${large ? "wt-rewards-img-icon--large" : ""} ${unlocked ? "" : "wt-rewards-img-icon--dim"}`}
+        style={large ? { fontSize: 72, lineHeight: 1, display: "block" } : undefined}
+      >
         {badge.fallbackIcon}
       </span>
     );
@@ -280,35 +399,62 @@ function RewardsCardImage({ badge, unlocked }) {
     <img
       src={badge.image}
       alt={badge.name}
-      className={`wt-rewards-img ${unlocked ? "" : "wt-rewards-img--dim"}`}
+      className={`wt-rewards-img ${large ? "wt-rewards-img--large" : ""} ${unlocked ? "" : "wt-rewards-img--dim"}`}
       onError={() => setImgError(true)}
     />
   );
 }
 
-// ── Rewards modal: single badge card ────────────────────────────────────────────
+// ── Rewards modal: single square MMORPG badge card ────────────────────────────
 function RewardsBadgeCard({ badge, currentLevel, delay = 0 }) {
-  const unlocked = currentLevel >= badge.level;
+  const unlocked    = currentLevel >= badge.level;
+  const progress    = Math.min(currentLevel, badge.level);
+  const progressPct = Math.round((progress / badge.level) * 100);
 
   return (
     <div
-      className={`wt-rewards-card ${unlocked ? "wt-rewards-card--unlocked" : "wt-rewards-card--locked"}`}
+      className={`wt-rwc ${unlocked ? "wt-rwc--unlocked" : "wt-rwc--locked"}`}
       style={{ animationDelay: `${delay}ms` }}
     >
-      <div className={`wt-rewards-img-wrap ${unlocked ? "wt-rewards-img-wrap--unlocked" : ""}`}>
-        <div className="wt-rewards-img-glow" aria-hidden="true" />
-        <RewardsCardImage badge={badge} unlocked={unlocked} />
+      {/* Ambient glow behind badge */}
+      <div className="wt-rwc-glow-ring" aria-hidden="true" />
+
+      {/* Badge image */}
+      <div className={`wt-rwc-img-wrap ${unlocked ? "wt-rwc-img-wrap--unlocked" : ""}`}>
+        <RewardsCardImage badge={badge} unlocked={unlocked} large />
       </div>
 
-      <div className="wt-rewards-card-body">
-        <p className="wt-rewards-card-name">
+      {/* Text body */}
+      <div className="wt-rwc-body">
+        <p className="wt-rwc-name">
           <span aria-hidden="true">{badge.emoji}</span> {badge.name}
         </p>
-        <p className="wt-rewards-card-level">Unlocks at Level {badge.level}</p>
-        <p className="wt-rewards-card-desc">{badge.description}</p>
+        <p className="wt-rwc-desc">{badge.description}</p>
+
+        {/* Unlock level box */}
+        <div className={`wt-rwc-level-box wt-rwc-level-box--lv${badge.level} ${unlocked ? "wt-rwc-level-box--unlocked" : ""}`}>
+          <span className="wt-rwc-level-label">Unlocks at</span>
+          <span className={`wt-rwc-level-num ${unlocked ? "wt-rwc-level-num--golden" : ""}`}>
+            Level {badge.level}
+          </span>
+        </div>
+
+        {/* Progress bar */}
+        <div className="wt-rwc-progress">
+          <div className="wt-rwc-progress-track">
+            <div
+              className={`wt-rwc-progress-fill ${unlocked ? "wt-rwc-progress-fill--unlocked" : ""}`}
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+          <span className="wt-rwc-progress-label">
+            {progress} / {badge.level}
+          </span>
+        </div>
       </div>
 
-      <div className={`wt-rewards-status ${unlocked ? "wt-rewards-status--unlocked" : "wt-rewards-status--locked"}`}>
+      {/* Status pill */}
+      <div className={`wt-rwc-status ${unlocked ? "wt-rwc-status--unlocked" : "wt-rwc-status--locked"}`}>
         {unlocked ? "✅ Unlocked" : "🔒 Locked"}
       </div>
     </div>
@@ -317,7 +463,7 @@ function RewardsBadgeCard({ badge, currentLevel, delay = 0 }) {
 
 // ── Rewards modal ─────────────────────────────────────────────────────────────
 function RewardsModal({ level, badges, onClose }) {
-  const nextLevel = getNextRewardLevel(level, badges);
+  const nextLevel   = getNextRewardLevel(level, badges);
   const allUnlocked = nextLevel === null;
   const progressPct = allUnlocked
     ? 100
@@ -333,7 +479,7 @@ function RewardsModal({ level, badges, onClose }) {
         <div className="wt-rewards-progress-card">
           <div className="wt-rewards-progress-top">
             <span className="wt-rewards-progress-label">Current Tree Level</span>
-            <span className="wt-rewards-progress-level">{level}</span>
+            <span className="wt-rewards-progress-level">Level {level}</span>
           </div>
           <div className="wt-rewards-progress-track">
             <div className="wt-rewards-progress-fill" style={{ width: `${progressPct}%` }} />
@@ -345,16 +491,34 @@ function RewardsModal({ level, badges, onClose }) {
           </p>
         </div>
 
-        {/* Scrollable badge grid */}
+        {/* Scrollable badge grid — 3 col desktop / 2 col mobile */}
         <div className="wt-rewards-grid">
           {badges.map((badge, i) => (
             <RewardsBadgeCard
               key={badge.level}
               badge={badge}
               currentLevel={level}
-              delay={i * 70}
+              delay={i * 80}
             />
           ))}
+        </div>
+
+        {/* Global limited-rewards info banner */}
+        <div className="wt-rewards-info-banner">
+          <span className="wt-rewards-info-star" aria-hidden="true">⭐</span>
+          <div className="wt-rewards-info-text">
+            <p className="wt-rewards-info-title">World Tree Rewards are global and limited.</p>
+            <p className="wt-rewards-info-desc">
+              When the World Tree reaches a milestone, a rare badge appears for everyone.<br />
+              The first person to claim it keeps it forever, and it disappears for all others.
+            </p>
+          </div>
+          <img
+            src={treeImg}
+            alt=""
+            className="wt-rewards-info-tree-deco"
+            aria-hidden="true"
+          />
         </div>
       </div>
     </div>
@@ -670,6 +834,57 @@ function WorldTree() {
       ? 100
       : Math.max(0, Math.min(100, Math.round((level / nextBadge.level) * 100)));
 
+  // ── Memory Storm state (powered by stormService) ──────────────────────────
+  // activeStorm  – the current storm row from Supabase, or null
+  // stormGrowth  – bonus growth accumulated so far this storm (whole number)
+  // stormTimeLeft – seconds until the storm ends (0 when over / no storm)
+  const [activeStorm,   setActiveStorm]   = useState(null);
+  const [stormGrowth,   setStormGrowth]   = useState(0);
+  const [stormTimeLeft, setStormTimeLeft] = useState(0);
+
+  // Fetch the active storm on mount, then re-poll every 15 s.
+  // This is kept completely separate from `loadData()` so the existing
+  // reward / community-growth logic is never touched.
+  useEffect(() => {
+    const fetchStorm = async () => {
+      const { data } = await getActiveStorm();
+      setActiveStorm(data ?? null);
+      if (data) {
+        setStormGrowth(calculateStormGrowth(data));
+        setStormTimeLeft(getStormTimeLeft(data));
+      } else {
+        setStormGrowth(0);
+        setStormTimeLeft(0);
+      }
+    };
+    fetchStorm();
+    const pollId = setInterval(fetchStorm, 15_000);
+    return () => clearInterval(pollId);
+  }, []);
+
+  // Tick stormGrowth and stormTimeLeft every second while a storm is active.
+  // When the storm ends (timeLeft hits 0) the interval keeps running but both
+  // helpers clamp at the storm boundary — no negative values, no drift.
+  // The cleanup resets both counters so the breakdown card stays tidy.
+  useEffect(() => {
+    if (!activeStorm) {
+      setStormGrowth(0);
+      setStormTimeLeft(0);
+      return;
+    }
+    const tickId = setInterval(() => {
+      setStormGrowth(calculateStormGrowth(activeStorm));
+      setStormTimeLeft(getStormTimeLeft(activeStorm));
+    }, 1000);
+    return () => clearInterval(tickId);
+  }, [activeStorm]);
+
+  // A storm is "visually active" only while time remains.
+  // When it expires the banner hides automatically — no extra state needed.
+  const isStormActive      = !!activeStorm && stormTimeLeft > 0;
+  const stormRatePerSecond = getStormRatePerSecond(activeStorm);
+  const totalGrowthLive    = growth + stormGrowth;
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUserId(session?.user?.id ?? null);
@@ -802,7 +1017,7 @@ function WorldTree() {
     : null;
 
   return (
-    <div className="wt-root">
+    <div className={`wt-root ${isStormActive ? "storm-active" : ""}`}>
       <div className="wt-bg" style={{ backgroundImage: `url(${worldTreeBg})` }} />
       <div className="wt-bg-stars" aria-hidden="true" />
       <Particles />
@@ -828,14 +1043,20 @@ function WorldTree() {
         <button className="wt-help-btn" aria-label="Help" onClick={() => setShowHowItWorks(true)}>?</button>
       </header>
 
+      {/* ── Memory Storm banner (above the tree) ── */}
+      {isStormActive && (
+        <MemoryStormBanner ratePerSecond={stormRatePerSecond} msRemaining={stormTimeLeft * 1000} />
+      )}
+
       {/* ── Tree Hero ── */}
       <section className="wt-tree-section">
-        <div className={`wt-tree-glow ${treeGlowing ? "wt-tree-glow--feeding" : ""}`} aria-hidden="true" />
-        <div className={`wt-tree-glow wt-tree-glow--2 ${treeGlowing ? "wt-tree-glow--feeding" : ""}`} aria-hidden="true" />
+        <div className={`wt-tree-glow ${treeGlowing ? "wt-tree-glow--feeding" : ""} ${isStormActive ? "wt-tree-glow--storm" : ""}`} aria-hidden="true" />
+        <div className={`wt-tree-glow wt-tree-glow--2 ${treeGlowing ? "wt-tree-glow--feeding" : ""} ${isStormActive ? "wt-tree-glow--storm" : ""}`} aria-hidden="true" />
+        {isStormActive && <StormParticles />}
         <img
           src={treeImg}
           alt="World Memory Tree"
-          className={`wt-tree-img ${treeGlowing ? "wt-tree-img--glow" : ""}`}
+          className={`wt-tree-img ${treeGlowing ? "wt-tree-img--glow" : ""} ${isStormActive ? "wt-tree-img--storm" : ""}`}
         />
 
         {/* Floating legendary badge — only rendered when a milestone is
@@ -892,6 +1113,16 @@ function WorldTree() {
               <span className="wt-highlight">Level {level + 1}</span>
             </p>
           </div>
+        </FadeCard>
+
+        {/* 1b ── Storm Growth Breakdown (Community / Storm / Total) */}
+        <FadeCard delay={30}>
+          <StormGrowthCard
+            communityGrowth={growth}
+            stormGrowth={stormGrowth}
+            totalGrowth={totalGrowthLive}
+            isStormActive={isStormActive}
+          />
         </FadeCard>
 
         {/* 2 ── Feed Tree + Cooldown cards */}
