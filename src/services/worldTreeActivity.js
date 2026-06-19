@@ -58,7 +58,18 @@ const logActivity = async ({ userId, username, activityType, growthAmount = null
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error(
+        "WORLD_TREE_ACTIVITY INSERT FAILED",
+        error
+      );
+      throw error;
+    }
+
+    console.log(
+      "WORLD_TREE_ACTIVITY INSERT SUCCESS",
+      data
+    );
     return { data, error: null };
   } catch (error) {
     console.error(`[logActivity:${activityType}]`, error);
