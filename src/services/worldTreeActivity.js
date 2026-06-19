@@ -165,22 +165,28 @@ export const logStormContribution = async (userId, username, growthAmount) => {
 /**
  * Log that a user claimed a World Tree badge.
  *
- * Badge claims have no growth_amount (badges don't grant growth), so
- * growth_amount is stored as null.
- *
  * @param {string} userId
  * @param {string} username
- * @param {string} badgeName  e.g. "Seed Pioneer"
- * @example logBadgeClaimed(user.id, "DhanaSekar", "Seed Pioneer")
+ * @param {string} badgeName     e.g. "Seed Pioneer"
+ * @param {number|null} growthAmount  the badge's actual growth reward, if any.
+ *   Pass the real amount granted by the claim (e.g. from claimWorldTreeBadge's
+ *   result) — do not guess or hardcode this. If a badge grants no growth,
+ *   pass null/undefined and the "(+N Growth)" suffix is omitted automatically.
+ * @example logBadgeClaimed(user.id, "DhanaSekar", "Seed Pioneer", 500)
+ *          -> "DhanaSekar claimed Seed Pioneer (+500 Growth)"
+ * @example logBadgeClaimed(user.id, "DhanaSekar", "Seed Pioneer", null)
  *          -> "DhanaSekar claimed Seed Pioneer"
  */
-export const logBadgeClaimed = async (userId, username, badgeName) => {
-  const message = `${username} claimed ${badgeName}`;
+export const logBadgeClaimed = async (userId, username, badgeName, growthAmount = null) => {
+  const message =
+    growthAmount != null
+      ? `${username} claimed ${badgeName} (+${growthAmount} Growth)`
+      : `${username} claimed ${badgeName}`;
   return logActivity({
     userId,
     username,
     activityType: ACTIVITY_TYPES.BADGE_CLAIMED,
-    growthAmount: null,
+    growthAmount,
     message,
   });
 };

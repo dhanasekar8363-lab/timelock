@@ -30,6 +30,7 @@ import {
   finalizeStormGrowth,
 } from "../services/stormService";
 import FloatingBadge from "../components/FloatingBadge";
+import { logBadgeClaimed } from "../services/worldTreeActivity";
 import "./WorldTree.css";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -839,6 +840,13 @@ function WorldTree() {
   const [growthAnimating, setGrowthAnimating] = useState(false);
   const [claimedLevels,   setClaimedLevels]   = useState(() => new Set());
   const [globalBadgeClaims, setGlobalBadgeClaims] = useState(() => new Map());
+  // Guards against logging the same badge claim twice in one session
+  // (e.g. a double-click race or a re-render firing handleClaimBadge again
+  // before claimedLevels/state has caught up). Does NOT replace server-side
+  // dedupe in claimWorldTreeBadge — this only stops duplicate *activity log*
+  // rows on the client; the badge claim itself is still governed entirely
+  // by claimWorldTreeBadge's own result.claimed flag.
+  const loggedBadgeClaimsRef = useRef(new Set());
 
   // ── Memory Storm state (powered by stormService) ──────────────────────────
   // activeStorm  – the current storm row from Supabase, or null
@@ -1027,6 +1035,12 @@ function WorldTree() {
     }
   }, []);
 
+  // Moved above handleClaimBadge (was originally declared after it) so the
+  // badge-claim activity logging below can safely reference the current
+  // user's already-resolved username. No behavior change — same derivation,
+  // just hoisted earlier in the function body.
+  const myEntry = contributors.find(c => c.user_id === userId);
+
   // Called by FloatingBadge when user clicks the floating collectible
   const handleClaimBadge = useCallback(async (badge) => {
     const result = await claimWorldTreeBadge(
@@ -1040,12 +1054,43 @@ function WorldTree() {
       // Optimistically add to local claimed set
       setClaimedLevels((prev) => new Set([...prev, badge.level]));
       // The realtime subscription will also fire and update globalBadgeClaims
+
+      // ── Activity log: badge_claimed ──────────────────────────────────────
+      // Fires only when claimWorldTreeBadge reports a genuine new claim
+      // (result.claimed === true). A page refresh that re-checks an
+      // already-claimed badge returns claimed: false and never reaches
+      // here, so no duplicate row is written. loggedBadgeClaimsRef adds a
+      // same-session guard on top, in case this handler ever fires twice
+      // for the same badge before claimedLevels re-renders (e.g. a fast
+      // double-click). Neither guard touches badge rewards, growth
+      // calculations, or the claim UI — this block is purely additive.
+      if (!loggedBadgeClaimsRef.current.has(badge.level)) {
+        loggedBadgeClaimsRef.current.add(badge.level);
+
+        // Username: reuse the same resolved value already used elsewhere
+        // in this file for the current user (e.g. the "(You)" tag in the
+        // leaderboard/contributors lists), so this matches whatever
+        // source capsule_sent / capsule_opened use for username.
+        const username = myEntry?.name ?? null;
+
+        // Growth amount: must reflect the badge's REAL reward, not a
+        // guessed constant. claimWorldTreeBadge is the function that
+        // actually grants the reward, so it should be the single source
+        // of truth here.
+        // TODO: confirm the exact field name claimWorldTreeBadge returns
+        // for the granted amount and adjust the line below if needed
+        // (e.g. result.growthAmount, result.data?.growth_amount, or a
+        // GROWTH_REWARDS.BADGE_CLAIM-style constant if badges use a flat
+        // reward). Do NOT default this to 0 silently in production.
+        const growthAmount =
+          result.growthAmount ?? result.data?.growth_amount ?? null;
+
+        logBadgeClaimed(userId, username, badge.name, growthAmount);
+      }
     }
 
     return result;
-  }, [userId]);
-
-  const myEntry = contributors.find(c => c.user_id === userId);
+  }, [userId, myEntry]);
 
   // Determine which badge should be floating near the tree right now:
   //   — Tree must have reached the badge's level
