@@ -8,11 +8,12 @@
 .fb-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: 9999;           /* was 100 — raised so it clears any app-shell layers */
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 20px;
+  overflow-y: auto;        /* allow backdrop itself to scroll on very short viewports */
 
   /* Soft dark veil over the tree — preserves fantasy atmosphere */
   background: radial-gradient(
@@ -40,6 +41,12 @@
   width: 100%;
   max-width: 340px;
 
+  /* Never let the card taller than the available viewport space.
+     overflow-y: auto ensures the Claim button stays scrollable into view. */
+  max-height: min(calc(100dvh - 40px), 600px);
+  overflow-y: auto;
+  overflow-x: hidden;
+
   /* Glassmorphism */
   background: rgba(20, 5, 52, 0.75);
   backdrop-filter: blur(24px);
@@ -56,7 +63,6 @@
   align-items: center;
   gap: 0;
   padding: 28px 24px 30px;
-  overflow: hidden;
 
   animation: fb-card-in 0.42s cubic-bezier(0.34, 1.35, 0.64, 1) both;
 }
@@ -66,6 +72,7 @@
   content: "";
   position: absolute;
   inset: 0;
+  z-index: 0;
   border-radius: inherit;
   background: linear-gradient(
     160deg,
@@ -73,6 +80,18 @@
     transparent 40%
   );
   pointer-events: none;
+}
+
+/* Ensure all direct card children sit above the pseudo */
+.fb-eyebrow,
+.fb-icon-wrap,
+.fb-meta,
+.fb-result,
+.fb-claim-btn,
+.fb-claiming-indicator,
+.fb-login-hint {
+  position: relative;
+  z-index: 1;
 }
 
 .fb-card--won {
@@ -124,14 +143,18 @@
 /* ── Badge icon area ────────────────────────────────────────────────────── */
 .fb-icon-wrap {
   position: relative;
-  /* Ensure sparks + orbit ring are contained around the frame */
-  width: 140px;
-  height: 140px;
+  /* Slightly wider than the icon frame to give orbit dots breathing room.
+     The 160px matches the 72px orbit radius + 4px margin all around. */
+  width: 160px;
+  height: 160px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   margin-bottom: 20px;
+  /* overflow:visible so orbit dots and sparks aren't clipped at this layer;
+     the card's overflow-x:hidden handles any lateral overflow. */
+  overflow: visible;
 }
 
 /* Glow halos */
@@ -469,8 +492,9 @@
 /* ── Desktop: scale badge image up to 180px ─────────────────────────────── */
 @media (min-width: 480px) {
   .fb-icon-wrap {
-    width: 200px;
-    height: 200px;
+    /* 220px gives orbit dots (100px radius) a 10px margin each side */
+    width: 220px;
+    height: 220px;
     margin-bottom: 22px;
   }
 

@@ -5,6 +5,7 @@
 // ============================================================
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import "./FloatingBadge.css";
 
 // ── Sparkle burst on claim ─────────────────────────────────────────────────
@@ -114,7 +115,10 @@ export default function FloatingBadge({ badge, userId, onClaim, visible }) {
   // Result state shown inside the card after claim attempt
   const resultState = isWon ? "won" : isLost ? "lost" : null;
 
-  return (
+  // Portal to document.body so the fixed backdrop escapes every stacking
+  // context (including wt-tree-section's z-index:5 stacking context), which
+  // was causing wt-cards / wt-header to paint over the modal.
+  return createPortal(
     /* Full-screen backdrop — centres the card and dims the tree behind it */
     <div className={`fb-backdrop fb-backdrop--${phase}`} role="dialog" aria-modal="true" aria-label={`Claim ${badge.name} badge`}>
 
@@ -212,6 +216,7 @@ export default function FloatingBadge({ badge, userId, onClaim, visible }) {
           <p className="fb-login-hint">Log in to be the First Discoverer</p>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

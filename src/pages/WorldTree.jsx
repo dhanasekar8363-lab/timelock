@@ -1067,18 +1067,9 @@ function WorldTree() {
           className={`wt-tree-img ${treeGlowing ? "wt-tree-img--glow" : ""} ${isStormActive ? "wt-tree-img--storm" : ""}`}
         />
 
-        {/* Floating legendary badge — only rendered when a milestone is
-            available AND nobody has claimed it yet.
-            Positions itself relative to the tree. */}
-        {floatingBadge && !dataLoading && (
-          <FloatingBadge
-            badge={floatingBadge}
-            userId={userId}
-            onClaim={handleClaimBadge}
-            visible={!globalBadgeClaims.has(floatingBadge.level)}
-          />
-        )}
-
+        {/* Floating legendary badge is rendered at the wt-root level below
+            to avoid the wt-tree-section (z-index:5) stacking context trap.
+            FloatingBadge also uses createPortal for additional safety. */}
 
         <div className="wt-level-badge">
           <span className="wt-level-label">Level</span>
@@ -1410,6 +1401,19 @@ function WorldTree() {
           onClose={() => setShowRewards(false)}
         />
       )}
+      {/* ── Floating legendary badge ── */}
+      {/* Rendered here (root of wt-root) so it sits outside the z-index:5
+          wt-tree-section stacking context. FloatingBadge also uses
+          createPortal internally, giving two layers of stacking-context safety. */}
+      {floatingBadge && !dataLoading && (
+        <FloatingBadge
+          badge={floatingBadge}
+          userId={userId}
+          onClaim={handleClaimBadge}
+          visible={!globalBadgeClaims.has(floatingBadge.level)}
+        />
+      )}
+
     </div>
   );
 }
