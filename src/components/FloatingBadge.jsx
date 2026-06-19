@@ -1,7 +1,15 @@
 // ============================================================
 // FloatingBadge.jsx
 // MMORPG-style achievement popup for World Tree badge claims.
-// Centered card layout — no full-bleed artwork.
+//
+// CHANGES (badge artwork sizing):
+//   • FloatingBadge.css now provides explicit fixed dimensions
+//     (--fb-icon-size: 80px mobile / 96px desktop) on .fb-icon-frame.
+//   • .fb-badge-img uses width/height 100% + object-fit:contain so the
+//     full artwork is always visible and never overflows the card.
+//   • .fb-icon-wrap mirrors those dimensions so halo / orbit decorations
+//     remain perfectly centred around the constrained icon frame.
+//   • No reward-modal badge grid styles were touched.
 // ============================================================
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -26,9 +34,9 @@ function SparkleParticles({ active }) {
           key={s.id}
           className={`fb-spark ${active ? "fb-spark--burst" : ""}`}
           style={{
-            "--angle": `${s.angle}deg`,
-            "--dist": `${s.distance}px`,
-            fontSize: `${s.size}px`,
+            "--angle":  `${s.angle}deg`,
+            "--dist":   `${s.distance}px`,
+            fontSize:   `${s.size}px`,
             animationDelay: `${s.delay}ms`,
           }}
         >
@@ -112,15 +120,19 @@ export default function FloatingBadge({ badge, userId, onClaim, visible }) {
   const isWon      = phase === "won";
   const isLost     = phase === "lost";
 
-  // Result state shown inside the card after claim attempt
   const resultState = isWon ? "won" : isLost ? "lost" : null;
 
   // Portal to document.body so the fixed backdrop escapes every stacking
-  // context (including wt-tree-section's z-index:5 stacking context), which
-  // was causing wt-cards / wt-header to paint over the modal.
+  // context (including wt-tree-section's z-index:5), preventing wt-cards /
+  // wt-header from painting over the modal.
   return createPortal(
     /* Full-screen backdrop — centres the card and dims the tree behind it */
-    <div className={`fb-backdrop fb-backdrop--${phase}`} role="dialog" aria-modal="true" aria-label={`Claim ${badge.name} badge`}>
+    <div
+      className={`fb-backdrop fb-backdrop--${phase}`}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Claim ${badge.name} badge`}
+    >
 
       {/* ── Achievement card ── */}
       <div className={`fb-card fb-card--${phase}`}>
@@ -131,24 +143,47 @@ export default function FloatingBadge({ badge, userId, onClaim, visible }) {
           <span className="fb-eyebrow-label">Badge Unlocked</span>
         </div>
 
-        {/* Badge icon area */}
+        {/* ── Badge icon area ────────────────────────────────────────────
+            .fb-icon-wrap has a fixed size matching --fb-icon-size so
+            halo / orbit rings are always centred.
+            .fb-icon-frame is the hard size cap: no child can make it grow.
+            .fb-badge-img fills the frame with object-fit:contain so the
+            full artwork is visible without overflow.
+        ──────────────────────────────────────────────────────────────── */}
         <div className="fb-icon-wrap">
           {isIdle && <OrbitRing />}
 
-          {/* Glow halo rings */}
-          <div className="fb-halo" aria-hidden="true" />
+          {/* Glow halo rings — positioned relative to fb-icon-wrap */}
+          <div className="fb-halo"    aria-hidden="true" />
           <div className="fb-halo fb-halo--2" aria-hidden="true" />
 
-          {/* Badge image — constrained, never full-bleed */}
-          <div className={`fb-icon-frame ${isClaiming ? "fb-icon-frame--claiming" : ""} ${isWon ? "fb-icon-frame--won" : ""}`}>
+          {/*
+            fb-icon-frame: fixed width/height set by CSS custom property
+            --fb-icon-size (80px mobile, 96px ≥480px). overflow:hidden
+            clips anything that tries to escape. The <img> inside uses
+            width:100% height:100% object-fit:contain so it scales to fit.
+          */}
+          <div
+            className={[
+              "fb-icon-frame",
+              isClaiming ? "fb-icon-frame--claiming" : "",
+              isWon      ? "fb-icon-frame--won"      : "",
+            ].join(" ").trim()}
+          >
             {badge.image ? (
               <img
                 src={badge.image}
                 alt={badge.name}
                 className="fb-badge-img"
-                onError={(e) => { e.target.style.display = "none"; e.target.nextSibling.style.display = "flex"; }}
+                /* On error: hide broken img and show emoji fallback below */
+                onError={(e) => {
+                  e.target.style.display = "none";
+                  e.target.nextSibling.style.display = "flex";
+                }}
               />
             ) : null}
+
+            {/* Emoji fallback — visible when image is absent or fails */}
             <span
               className="fb-badge-emoji"
               style={{ display: badge.image ? "none" : "flex" }}
@@ -157,11 +192,11 @@ export default function FloatingBadge({ badge, userId, onClaim, visible }) {
             </span>
           </div>
 
-          {/* Sparkles burst on win */}
+          {/* Sparkle burst on win — renders above everything in icon-wrap */}
           <SparkleParticles active={showSparks} />
         </div>
 
-        {/* Badge name & description */}
+        {/* Badge name & description — only in idle / claiming states */}
         {!resultState && (
           <div className="fb-meta">
             <h2 className="fb-badge-name">{badge.name}</h2>
@@ -169,22 +204,30 @@ export default function FloatingBadge({ badge, userId, onClaim, visible }) {
               <p className="fb-badge-desc">{badge.description}</p>
             )}
             {isIdle && (
-              <span className="fb-rarity-tag" aria-hidden="true">✦ LEGENDARY</span>
+              <span className="fb-rarity-tag" aria-hidden="true">
+                ✦ LEGENDARY
+              </span>
             )}
           </div>
         )}
 
-        {/* Result state */}
+        {/* Result state — shown after claim attempt resolves */}
         {resultState && (
           <div className="fb-result" aria-live="assertive">
             {isWon ? (
               <>
-                <p className="fb-result-headline fb-result-headline--won">🎉 You claimed it!</p>
-                <p className="fb-result-sub">First Discoverer · Added to your collection</p>
+                <p className="fb-result-headline fb-result-headline--won">
+                  🎉 You claimed it!
+                </p>
+                <p className="fb-result-sub">
+                  First Discoverer · Added to your collection
+                </p>
               </>
             ) : (
               <>
-                <p className="fb-result-headline fb-result-headline--lost">Another guardian was faster…</p>
+                <p className="fb-result-headline fb-result-headline--lost">
+                  Another guardian was faster…
+                </p>
                 <p className="fb-result-sub">{badge.name} has been claimed.</p>
               </>
             )}
@@ -204,6 +247,7 @@ export default function FloatingBadge({ badge, userId, onClaim, visible }) {
           </button>
         )}
 
+        {/* Claiming spinner */}
         {isClaiming && (
           <div className="fb-claiming-indicator" aria-live="polite">
             <span className="fb-spinner" aria-hidden="true" />
@@ -211,7 +255,7 @@ export default function FloatingBadge({ badge, userId, onClaim, visible }) {
           </div>
         )}
 
-        {/* Rarity hint when logged out */}
+        {/* Logged-out hint */}
         {isIdle && !userId && (
           <p className="fb-login-hint">Log in to be the First Discoverer</p>
         )}

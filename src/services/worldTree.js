@@ -23,7 +23,6 @@ export async function getWorldTree() {
   const response = await supabase
     .from("world_tree")
     .select("*")
-    .eq("id", 1)
     .single();
 
   if (response.error || !response.data) {
@@ -60,7 +59,6 @@ export async function addTreeGrowth(
   const { data: tree } = await supabase
     .from("world_tree")
     .select("*")
-    .eq("id", 1)
     .single();
 
   const newGrowth =
@@ -72,7 +70,7 @@ export async function addTreeGrowth(
       growth: newGrowth,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", 1);
+    .eq("id", tree.id);
 
   await supabase
     .from("world_tree_contributions")
