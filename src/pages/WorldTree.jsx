@@ -1050,6 +1050,8 @@ function WorldTree() {
       badge.key,
     );
 
+    console.log("[BadgeClaim] claim success", result);
+
     if (result.claimed) {
       // Optimistically add to local claimed set
       setClaimedLevels((prev) => new Set([...prev, badge.level]));
@@ -1067,25 +1069,42 @@ function WorldTree() {
       if (!loggedBadgeClaimsRef.current.has(badge.level)) {
         loggedBadgeClaimsRef.current.add(badge.level);
 
-        // Username: reuse the same resolved value already used elsewhere
-        // in this file for the current user (e.g. the "(You)" tag in the
-        // leaderboard/contributors lists), so this matches whatever
-        // source capsule_sent / capsule_opened use for username.
-        const username = myEntry?.name ?? null;
+        // Username: prefer the leaderboard-resolved name (matches what
+        // capsule_sent / capsule_opened use), but fall back to the auth
+        // user's metadata/email when the claimant isn't on the leaderboard
+        // yet — e.g. claiming the very first badge (level 5) before they've
+        // contributed enough to appear in getTopContributors(50). Previously
+        // this fell straight to `null`, which silently failed the insert.
+        let username = myEntry?.name ?? null;
+        if (!username) {
+          const { data: authData } = await supabase.auth.getUser();
+          username =
+            authData?.user?.user_metadata?.username ??
+            authData?.user?.email ??
+            "A Guardian";
+        }
 
         // Growth amount: must reflect the badge's REAL reward, not a
         // guessed constant. claimWorldTreeBadge is the function that
         // actually grants the reward, so it should be the single source
-        // of truth here.
-        // TODO: confirm the exact field name claimWorldTreeBadge returns
-        // for the granted amount and adjust the line below if needed
-        // (e.g. result.growthAmount, result.data?.growth_amount, or a
-        // GROWTH_REWARDS.BADGE_CLAIM-style constant if badges use a flat
-        // reward). Do NOT default this to 0 silently in production.
+        // of truth here. The atomic RPC currently returns no growth field
+        // at all, so this resolves to null and the "(+N Growth)" suffix is
+        // correctly omitted by logBadgeClaimed — this is expected, not a bug.
         const growthAmount =
           result.growthAmount ?? result.data?.growth_amount ?? null;
 
-        logBadgeClaimed(userId, username, badge.name, growthAmount);
+        console.log("[BadgeClaim] logging activity");
+
+        const activityResult = await logBadgeClaimed(userId, username, badge.name, growthAmount);
+
+        console.log("[BadgeClaim] activity result", activityResult);
+
+        if (activityResult.error) {
+          // Don't silently swallow this — surface it so insert failures
+          // (bad column constraint, RLS, etc.) are visible instead of
+          // disappearing into an unawaited promise.
+          console.error("[BadgeClaim] failed to log badge_claimed activity", activityResult.error);
+        }
       }
     }
 
