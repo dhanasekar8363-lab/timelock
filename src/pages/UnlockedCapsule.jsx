@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import unlockBg from "../assets/backgrounds/unlock-bg.png";
 import { usePet } from "../contexts/PetContext";
+import { logCapsuleOpened } from "../services/worldTreeActivity";
 import "./UnlockedCapsule.css";
 
 /* ── Sparkle particle ── */
@@ -247,6 +248,21 @@ function UnlockedCapsule({ capsule }) {
 
   const mediaUrls  = capsule?.media_urls  || capsule?.media?.map((m) => m.url)  || [];
   const mediaTypes = capsule?.media_types || capsule?.media?.map((m) => m.type) || [];
+
+  // 📝 Activity feed — log that this capsule was opened.
+  // This component only renders once the unlock has already succeeded
+  // (mirrors the XP reward effect above), so by the time this runs the
+  // "open" action is already done — this is logging only, it does not
+  // award growth itself, so it can't double-count whatever growth (if
+  // any) is granted elsewhere for opening a capsule.
+  useEffect(() => {
+    const openerId   = capsule?.receiver_id || capsule?.receiverId || null;
+    const openerName = receiverName || senderName || "Someone";
+    logCapsuleOpened(openerId, openerName, 200).catch((e) =>
+      console.warn("[WorldTreeActivity] logCapsuleOpened failed silently:", e)
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — log fires once per mount, same as the reward effect
 
   const formattedDate = unlockDate
     ? new Date(unlockDate).toLocaleDateString("en-US", {

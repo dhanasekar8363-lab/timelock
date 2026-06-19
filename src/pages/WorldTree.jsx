@@ -39,6 +39,26 @@ const MOCK_COMMUNITY = {
   treeAgeDays:       94,
 };
 
+// ── Live Activity Feed: placeholder/mock data ──────────────────────────────
+// TEMPORARY — replace with a real Supabase fetch + Realtime subscription
+// once the world_tree_activity table/channel is wired up. For now the
+// Live Activity button + modal are fully functional UI running on static
+// mock rows so design/UX can be reviewed independently of the backend.
+const MOCK_LIVE_UNREAD_COUNT = 7;
+
+const MOCK_LIVE_ACTIVITY = [
+  { id: "m1",  activity_type: "tree_fed",       message: "Aanya fed the World Tree",                 growth_amount: 25,   created_at: new Date(Date.now() - 2   * 60_000).toISOString() },
+  { id: "m2",  activity_type: "capsule_opened", message: "Marcus opened a memory capsule",            growth_amount: 40,   created_at: new Date(Date.now() - 9   * 60_000).toISOString() },
+  { id: "m3",  activity_type: "badge_claimed",  message: "Priya claimed the Seed Pioneer badge",      growth_amount: null, created_at: new Date(Date.now() - 18  * 60_000).toISOString() },
+  { id: "m4",  activity_type: "capsule_sent",   message: "Liam sent a new capsule",                   growth_amount: 15,   created_at: new Date(Date.now() - 26  * 60_000).toISOString() },
+  { id: "m5",  activity_type: "storm_growth",   message: "Memory Storm boosted the tree",             growth_amount: 120,  created_at: new Date(Date.now() - 41  * 60_000).toISOString() },
+  { id: "m6",  activity_type: "tree_fed",       message: "Sofia fed the World Tree",                  growth_amount: 25,   created_at: new Date(Date.now() - 55  * 60_000).toISOString() },
+  { id: "m7",  activity_type: "capsule_opened", message: "Noah opened a memory capsule",              growth_amount: 40,   created_at: new Date(Date.now() - 72  * 60_000).toISOString() },
+  { id: "m8",  activity_type: "capsule_sent",   message: "Elena sent a new capsule",                  growth_amount: 15,   created_at: new Date(Date.now() - 95  * 60_000).toISOString() },
+  { id: "m9",  activity_type: "tree_fed",       message: "Kenji fed the World Tree",                  growth_amount: 25,   created_at: new Date(Date.now() - 130 * 60_000).toISOString() },
+  { id: "m10", activity_type: "badge_claimed",  message: "Grace claimed the Nature Guardian badge",    growth_amount: null, created_at: new Date(Date.now() - 170 * 60_000).toISOString() },
+];
+
 // World Tree milestone badge progression — Level 5 / 10 / 15 / 20 / 25.
 // Used to drive the dynamic "Next Reward" card.
 const NEXT_REWARD_BADGES = [
@@ -525,105 +545,6 @@ function RewardsModal({ level, badges, onClose }) {
   );
 }
 
-// ── World Tree Legends badge image (with graceful emoji fallback) ─────────
-function LegendBadgeImage({ badge, claimed }) {
-  const [imgError, setImgError] = useState(false);
-
-  if (!badge?.image || imgError) {
-    return (
-      <span
-        className={`wt-leg-badge-emoji ${claimed ? "" : "wt-leg-badge-emoji--dim"}`}
-      >
-        {badge?.fallbackIcon || "🏅"}
-      </span>
-    );
-  }
-
-  return (
-    <img
-      src={badge.image}
-      alt={badge.name}
-      className={`wt-leg-badge-img ${claimed ? "" : "wt-leg-badge-img--dim"}`}
-      onError={() => setImgError(true)}
-    />
-  );
-}
-
-// ── World Tree Legends section card ──────────────────────────────────────
-// globalBadgeClaims: Map<badgeLevel, claimRow>  (already in parent state)
-// NEXT_REWARD_BADGES: the 5 milestone badge definitions (already in scope)
-//
-// claimRow shape (after the SQL migration runs):
-//   { badge_level, user_id, claimer_name, claimed_at, … }
-function WorldTreeLegends({ badges, globalBadgeClaims, loading }) {
-  return (
-    <div className="wt-card wt-legends-card">
-      {/* Section header */}
-      <p className="wt-leg-title">
-        <span className="wt-leg-title-crown" aria-hidden="true">🏆</span>
-        World Tree Legends
-      </p>
-
-      <div className="wt-leg-list" role="list">
-        {loading
-          /* Skeleton placeholders while data loads */
-          ? Array.from({ length: badges.length }).map((_, i) => (
-              <div key={i} className="wt-leg-skeleton" aria-hidden="true" />
-            ))
-          : badges.map((badge) => {
-              const claim = globalBadgeClaims.get(badge.level);
-              const isClaimed = !!claim;
-
-              return (
-                <div
-                  key={badge.level}
-                  className={`wt-leg-row ${isClaimed ? "wt-leg-row--claimed" : "wt-leg-row--unclaimed"}`}
-                  role="listitem"
-                  aria-label={`${badge.name} — ${isClaimed ? `First Discoverer: ${claim.claimer_name}` : "Unclaimed"}`}
-                >
-                  {/* Badge image bubble */}
-                  <div className="wt-leg-img-wrap">
-                    <LegendBadgeImage badge={badge} claimed={isClaimed} />
-                  </div>
-
-                  {/* Text info */}
-                  <div className="wt-leg-info">
-                    <p className="wt-leg-badge-name">{badge.name}</p>
-                    <p className="wt-leg-level">Unlocks at Level {badge.level}</p>
-
-                    {isClaimed ? (
-                      <>
-                        <p className="wt-leg-claimer">
-                          <span className="wt-leg-claimer-icon" aria-hidden="true">👑</span>
-                          First Discoverer:{" "}
-                          <span className="wt-leg-claimer-name">
-                            {claim.claimer_name || "Unknown Guardian"}
-                          </span>
-                        </p>
-                        {claim.claimed_at && (
-                          <p className="wt-leg-timestamp">
-                            {new Date(claim.claimed_at).toLocaleDateString(undefined, {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                            })}
-                          </p>
-                        )}
-                      </>
-                    ) : (
-                      <p className="wt-leg-unclaimed">
-                        <span aria-hidden="true">❓</span> Unclaimed
-                      </p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-      </div>
-    </div>
-  );
-}
-
 // ── Animated progress bar ──────────────────────────────────────────────────────
 function AnimatedBar({ pct }) {
   const [width, setWidth] = useState(0);
@@ -808,6 +729,118 @@ function FeedSection({ userId, onFed, treeGlowing }) {
   );
 }
 
+// ── Activity timestamp formatter ───────────────────────────────────────────────
+function formatActivityTime(isoString) {
+  const date = new Date(isoString);
+  const diffMs = Date.now() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60_000);
+  if (diffMins < 1)  return "just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+// Activity type → compact emoji label
+const ACTIVITY_ICONS = {
+  capsule_sent:   { icon: "🫙", label: "sent a capsule" },
+  capsule_opened: { icon: "🔓", label: "opened a memory" },
+  tree_fed:       { icon: "🌳", label: "fed the tree" },
+  storm_growth:   { icon: "⚡", label: "storm growth" },
+  badge_claimed:  { icon: "🏅", label: "claimed a badge" },
+};
+
+// ── Live Feed Modal ────────────────────────────────────────────────────────────
+// NOTE: Currently runs on MOCK_LIVE_ACTIVITY placeholder data. No Supabase
+// fetch or Realtime subscription is wired up yet — that's a follow-up once
+// the world_tree_activity table/channel exists. Swap the mock useState
+// initializer below for a real fetch + subscribe pair when ready.
+function LiveFeedModal({ onClose }) {
+  const [activities, setActivities] = useState(() => MOCK_LIVE_ACTIVITY);
+  const [loading]    = useState(false);
+  const [newIds]     = useState(() => new Set());
+
+  // Today's growth = sum of growth_amount for activities created today
+  const todayGrowth = (() => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    return activities
+      .filter(a => new Date(a.created_at) >= start && a.growth_amount != null)
+      .reduce((sum, a) => sum + Number(a.growth_amount || 0), 0);
+  })();
+
+  return (
+    <div className="wt-modal-overlay" onClick={onClose}>
+      <div className="wt-modal wt-modal--live" onClick={e => e.stopPropagation()}>
+        <button className="wt-modal-close" onClick={onClose} aria-label="Close live feed">✕</button>
+
+        {/* Header */}
+        <div className="wt-live-modal-header">
+          <div className="wt-live-modal-title-row">
+            <span className="wt-live-dot wt-live-dot--modal" aria-hidden="true" />
+            <h2 className="wt-modal-title" style={{ margin: 0 }}>World Tree Live Feed</h2>
+          </div>
+          <div className="wt-live-today-badge">
+            <span className="wt-live-today-label">Today's Growth</span>
+            <span className="wt-live-today-value">+{todayGrowth.toLocaleString()} 🌱</span>
+          </div>
+        </div>
+
+        {/* Activity list */}
+        {loading ? (
+          <p className="wt-loading-hint" style={{ textAlign: "center", padding: "24px 0" }}>
+            Loading feed…
+          </p>
+        ) : activities.length === 0 ? (
+          <p className="wt-loading-hint" style={{ textAlign: "center", padding: "24px 0" }}>
+            No activity yet — be the first! 🌱
+          </p>
+        ) : (
+          <ul className="wt-live-list">
+            {activities.map((a) => {
+              const meta = ACTIVITY_ICONS[a.activity_type] || { icon: "✨", label: a.activity_type };
+              return (
+                <li
+                  key={a.id}
+                  className={`wt-live-row ${newIds.has(a.id) ? "wt-live-row--new" : ""}`}
+                >
+                  <span className="wt-live-row-icon" aria-hidden="true">{meta.icon}</span>
+                  <div className="wt-live-row-body">
+                    <p className="wt-live-row-message">{a.message}</p>
+                    <p className="wt-live-row-time">{formatActivityTime(a.created_at)}</p>
+                  </div>
+                  {a.growth_amount != null && (
+                    <span className="wt-live-row-growth">+{Number(a.growth_amount).toLocaleString()}</span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Live Activity Button ───────────────────────────────────────────────────────
+function LiveActivityButton({ unreadCount, onClick }) {
+  return (
+    <button className="wt-live-btn" onClick={onClick} aria-label="Open live activity feed">
+      {/* Pulsing green LIVE indicator */}
+      <span className="wt-live-dot" aria-hidden="true" />
+      <span className="wt-live-label">🟢 LIVE</span>
+      <span className="wt-live-text">Activity Feed</span>
+      {/* Unread badge */}
+      {unreadCount > 0 && (
+        <span className="wt-live-unread" aria-label={`${unreadCount} unread`}>
+          {unreadCount > 99 ? "99+" : unreadCount}
+        </span>
+      )}
+      <span className="wt-live-chevron" aria-hidden="true">›</span>
+    </button>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 function WorldTree() {
@@ -823,6 +856,12 @@ function WorldTree() {
   const [showContributors, setShowContributors] = useState(false);
   const [showHowItWorks,   setShowHowItWorks]   = useState(false);
   const [showRewards,      setShowRewards]      = useState(false);
+  const [showLiveFeed,     setShowLiveFeed]     = useState(false);
+  const [unreadCount,      setUnreadCount]      = useState(0);
+  const lastReadAtRef = useRef(() => {
+    try { return localStorage.getItem("wt_last_read_activity") || new Date(0).toISOString(); }
+    catch { return new Date(0).toISOString(); }
+  });
   const [treeGlowing,   setTreeGlowing]   = useState(false);
   const [growthAnimating, setGrowthAnimating] = useState(false);
   const [claimedLevels,   setClaimedLevels]   = useState(() => new Set());
@@ -965,6 +1004,22 @@ function WorldTree() {
     };
   }, []);
 
+  // ── Live Activity Feed: unread counter ─────────────────────────────────────
+  // TEMPORARY — seeded from MOCK_LIVE_UNREAD_COUNT placeholder data, no
+  // Supabase subscription yet. Swap for a real-time "since last read" count
+  // once the world_tree_activity table/channel is wired up.
+  useEffect(() => {
+    setUnreadCount(MOCK_LIVE_UNREAD_COUNT);
+  }, []);
+
+  const handleOpenLiveFeed = () => {
+    setShowLiveFeed(true);
+    setUnreadCount(0);
+    const now = new Date().toISOString();
+    lastReadAtRef.current = () => now;
+    try { localStorage.setItem("wt_last_read_activity", now); } catch { /* ignore */ }
+  };
+
   useEffect(() => {
     if (!userId || contributors.length === 0) return;
     const me = contributors.find(c => c.user_id === userId);
@@ -1091,6 +1146,17 @@ function WorldTree() {
             <span className="wt-side-icon">👥</span>
             <span>Top<br/>Contributors</span>
           </button>
+          <button className="wt-side-btn wt-side-btn--live" onClick={handleOpenLiveFeed} aria-label="Open live activity feed">
+            <span className="wt-side-icon wt-side-icon--live">
+              <span className="wt-live-dot wt-live-dot--sidebar" aria-hidden="true" />
+            </span>
+            {unreadCount > 0 && (
+              <span className="wt-side-live-badge" aria-label={`${unreadCount} unread`}>
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
+            <span>LIVE<br/>Activity</span>
+          </button>
         </div>
       </section>
 
@@ -1128,15 +1194,6 @@ function WorldTree() {
         {/* 2 ── Feed Tree + Cooldown cards */}
         <FadeCard delay={60}>
           <FeedSection userId={userId} onFed={handleFed} treeGlowing={treeGlowing} />
-        </FadeCard>
-
-        {/* 2b ── World Tree Legends */}
-        <FadeCard delay={90}>
-          <WorldTreeLegends
-            badges={NEXT_REWARD_BADGES}
-            globalBadgeClaims={globalBadgeClaims}
-            loading={dataLoading}
-          />
         </FadeCard>
 
         {/* 3 ── Community Stats */}
@@ -1321,6 +1378,11 @@ function WorldTree() {
       </div>{/* /wt-cards */}
 
       <div className="wt-bottom-spacer" />
+
+      {/* ── Live Activity Feed Modal ── */}
+      {showLiveFeed && (
+        <LiveFeedModal onClose={() => setShowLiveFeed(false)} />
+      )}
 
       {/* ── All Contributors Modal ── */}
       {showContributors && (

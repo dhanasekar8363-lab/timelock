@@ -10,6 +10,7 @@ import {
   awardCapsuleCreated,
   awardCapsuleSent,
 } from "../services/supabase";
+import { logCapsuleSent } from "../services/worldTreeActivity";
 import { useAuth } from "../contexts/AuthContext";
 import { usePet, getLevel, getNextLevelXP } from "../contexts/PetContext";
 import { playSound } from "../utils/sounds";
@@ -770,6 +771,12 @@ function CreateCapsule() {
           awardCapsuleSent(currentUserId, savedCapsuleId).catch((e) =>
             console.warn("[WorldTree] awardCapsuleSent failed silently:", e)
           );
+          // 📝 Activity feed — log only, no growth side-effects of its own.
+          // sendMessage() above already succeeded, so the capsule was
+          // genuinely sent before this fires.
+          logCapsuleSent(currentUserId, senderName.trim(), 150).catch((e) =>
+            console.warn("[WorldTreeActivity] logCapsuleSent failed silently:", e)
+          );
         }
 
         await createNotification(
@@ -791,6 +798,11 @@ function CreateCapsule() {
       if (currentUserId && savedCapsuleId) {
         awardCapsuleSent(currentUserId, savedCapsuleId).catch((e) =>
           console.warn("[WorldTree] awardCapsuleSent (whatsapp) failed silently:", e)
+        );
+        // 📝 Activity feed — fires only after the WhatsApp share action above
+        // has already happened (waWindow was opened).
+        logCapsuleSent(currentUserId, senderName.trim(), 150).catch((e) =>
+          console.warn("[WorldTreeActivity] logCapsuleSent (whatsapp) failed silently:", e)
         );
       }
 
@@ -831,6 +843,11 @@ function CreateCapsule() {
       if (currentUserId && savedCapsuleId) {
         awardCapsuleSent(currentUserId, savedCapsuleId).catch((e) =>
           console.warn("[WorldTree] awardCapsuleSent (instagram) failed silently:", e)
+        );
+        // 📝 Activity feed — fires only after the capsule was already saved
+        // and the Instagram share flow has been initiated.
+        logCapsuleSent(currentUserId, senderName.trim(), 150).catch((e) =>
+          console.warn("[WorldTreeActivity] logCapsuleSent (instagram) failed silently:", e)
         );
       }
       setIgCapsuleUrl(capsuleUrl);
