@@ -2401,3 +2401,255 @@
     animation: none !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   WorldTree Legends — CSS additions
+   All class names use the "wt-leg-" prefix to avoid collisions.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Legends card header ─────────────────────────────────────────────────── */
+.wt-legends-card {
+  /* Slightly deeper purple tint to distinguish the Legends section */
+  background: rgba(28, 5, 65, 0.68);
+  border-color: rgba(180, 100, 255, 0.38);
+  box-shadow:
+    0 4px 28px rgba(100, 0, 200, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.wt-leg-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #c084fc;
+  margin: 0 0 14px;
+}
+
+.wt-leg-title-crown {
+  font-size: 18px;
+  filter: drop-shadow(0 0 6px rgba(232, 121, 249, 0.9));
+}
+
+/* ── Badge list ─────────────────────────────────────────────────────────── */
+.wt-leg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ── Single legend row ───────────────────────────────────────────────────── */
+.wt-leg-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(160, 80, 255, 0.20);
+  background: rgba(50, 8, 110, 0.42);
+  transition: border-color 0.25s, background 0.25s;
+  animation: wt-row-in 0.4s ease both;
+}
+
+/* Gold shimmer border for claimed rows */
+.wt-leg-row--claimed {
+  border-color: rgba(250, 200, 80, 0.38);
+  background: rgba(60, 25, 5, 0.38);
+  box-shadow: 0 0 18px rgba(250, 180, 40, 0.10);
+}
+
+.wt-leg-row--unclaimed {
+  border-color: rgba(120, 60, 200, 0.18);
+  opacity: 0.78;
+}
+
+/* ── Badge image bubble ──────────────────────────────────────────────────── */
+.wt-leg-img-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(40, 5, 90, 0.70);
+  border: 2px solid rgba(160, 80, 255, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.wt-leg-row--claimed .wt-leg-img-wrap {
+  border-color: rgba(250, 200, 80, 0.55);
+  box-shadow:
+    0 0 14px rgba(250, 180, 40, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+
+/* Subtle spinning aura on claimed rows */
+.wt-leg-row--claimed .wt-leg-img-wrap::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: conic-gradient(
+    rgba(250, 200, 80, 0.5) 0deg,
+    transparent 90deg,
+    rgba(250, 200, 80, 0.3) 180deg,
+    transparent 270deg,
+    rgba(250, 200, 80, 0.5) 360deg
+  );
+  animation: wt-leg-spin 6s linear infinite;
+  z-index: 0;
+}
+
+@keyframes wt-leg-spin {
+  to { transform: rotate(360deg); }
+}
+
+.wt-leg-badge-img {
+  position: relative;
+  z-index: 1;
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 6px rgba(200, 120, 255, 0.55));
+}
+
+.wt-leg-row--claimed .wt-leg-badge-img {
+  filter: drop-shadow(0 0 8px rgba(250, 200, 80, 0.65));
+}
+
+.wt-leg-badge-emoji {
+  position: relative;
+  z-index: 1;
+  font-size: 26px;
+  line-height: 1;
+}
+
+/* Greyed-out / locked look for unclaimed badges */
+.wt-leg-badge-img--dim,
+.wt-leg-badge-emoji--dim {
+  filter: grayscale(1) brightness(0.5);
+  opacity: 0.55;
+}
+
+/* ── Text block ──────────────────────────────────────────────────────────── */
+.wt-leg-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.wt-leg-badge-name {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #e8d8ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wt-leg-row--claimed .wt-leg-badge-name {
+  color: #fde68a;
+  text-shadow: 0 0 10px rgba(250, 200, 80, 0.45);
+}
+
+.wt-leg-level {
+  margin: 0;
+  font-size: 10px;
+  color: rgba(200, 160, 255, 0.52);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Claimed line */
+.wt-leg-claimer {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fbbf24;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.wt-leg-claimer-icon {
+  font-size: 13px;
+}
+
+.wt-leg-claimer-name {
+  color: #fde68a;
+  font-weight: 700;
+}
+
+/* Unclaimed line */
+.wt-leg-unclaimed {
+  margin: 0;
+  font-size: 11px;
+  color: rgba(160, 100, 255, 0.60);
+  font-style: italic;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Claimed timestamp (optional, toggled via state) */
+.wt-leg-timestamp {
+  margin: 0;
+  font-size: 9px;
+  color: rgba(200, 160, 255, 0.38);
+  letter-spacing: 0.02em;
+}
+
+/* ── Skeleton loading state ───────────────────────────────────────────────── */
+.wt-leg-skeleton {
+  height: 76px;
+  border-radius: 16px;
+  background: rgba(50, 8, 110, 0.35);
+  border: 1px solid rgba(160, 80, 255, 0.12);
+  overflow: hidden;
+  position: relative;
+}
+
+.wt-leg-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(160, 80, 255, 0.08) 50%,
+    transparent 100%
+  );
+  animation: wt-shimmer 1.8s ease-in-out infinite;
+}
+
+/* ── Staggered entrance delays ──────────────────────────────────────────── */
+.wt-leg-row:nth-child(1) { animation-delay: 0ms;   }
+.wt-leg-row:nth-child(2) { animation-delay: 70ms;  }
+.wt-leg-row:nth-child(3) { animation-delay: 140ms; }
+.wt-leg-row:nth-child(4) { animation-delay: 210ms; }
+.wt-leg-row:nth-child(5) { animation-delay: 280ms; }
+
+/* ── Desktop: 2-column grid when screen is wide enough ──────────────────── */
+@media (min-width: 560px) {
+  .wt-leg-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+}
+
+@media (min-width: 900px) {
+  .wt-leg-list {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}

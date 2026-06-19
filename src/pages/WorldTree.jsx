@@ -525,6 +525,105 @@ function RewardsModal({ level, badges, onClose }) {
   );
 }
 
+// ── World Tree Legends badge image (with graceful emoji fallback) ─────────
+function LegendBadgeImage({ badge, claimed }) {
+  const [imgError, setImgError] = useState(false);
+
+  if (!badge?.image || imgError) {
+    return (
+      <span
+        className={`wt-leg-badge-emoji ${claimed ? "" : "wt-leg-badge-emoji--dim"}`}
+      >
+        {badge?.fallbackIcon || "🏅"}
+      </span>
+    );
+  }
+
+  return (
+    <img
+      src={badge.image}
+      alt={badge.name}
+      className={`wt-leg-badge-img ${claimed ? "" : "wt-leg-badge-img--dim"}`}
+      onError={() => setImgError(true)}
+    />
+  );
+}
+
+// ── World Tree Legends section card ──────────────────────────────────────
+// globalBadgeClaims: Map<badgeLevel, claimRow>  (already in parent state)
+// NEXT_REWARD_BADGES: the 5 milestone badge definitions (already in scope)
+//
+// claimRow shape (after the SQL migration runs):
+//   { badge_level, user_id, claimer_name, claimed_at, … }
+function WorldTreeLegends({ badges, globalBadgeClaims, loading }) {
+  return (
+    <div className="wt-card wt-legends-card">
+      {/* Section header */}
+      <p className="wt-leg-title">
+        <span className="wt-leg-title-crown" aria-hidden="true">🏆</span>
+        World Tree Legends
+      </p>
+
+      <div className="wt-leg-list" role="list">
+        {loading
+          /* Skeleton placeholders while data loads */
+          ? Array.from({ length: badges.length }).map((_, i) => (
+              <div key={i} className="wt-leg-skeleton" aria-hidden="true" />
+            ))
+          : badges.map((badge) => {
+              const claim = globalBadgeClaims.get(badge.level);
+              const isClaimed = !!claim;
+
+              return (
+                <div
+                  key={badge.level}
+                  className={`wt-leg-row ${isClaimed ? "wt-leg-row--claimed" : "wt-leg-row--unclaimed"}`}
+                  role="listitem"
+                  aria-label={`${badge.name} — ${isClaimed ? `First Discoverer: ${claim.claimer_name}` : "Unclaimed"}`}
+                >
+                  {/* Badge image bubble */}
+                  <div className="wt-leg-img-wrap">
+                    <LegendBadgeImage badge={badge} claimed={isClaimed} />
+                  </div>
+
+                  {/* Text info */}
+                  <div className="wt-leg-info">
+                    <p className="wt-leg-badge-name">{badge.name}</p>
+                    <p className="wt-leg-level">Unlocks at Level {badge.level}</p>
+
+                    {isClaimed ? (
+                      <>
+                        <p className="wt-leg-claimer">
+                          <span className="wt-leg-claimer-icon" aria-hidden="true">👑</span>
+                          First Discoverer:{" "}
+                          <span className="wt-leg-claimer-name">
+                            {claim.claimer_name || "Unknown Guardian"}
+                          </span>
+                        </p>
+                        {claim.claimed_at && (
+                          <p className="wt-leg-timestamp">
+                            {new Date(claim.claimed_at).toLocaleDateString(undefined, {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="wt-leg-unclaimed">
+                        <span aria-hidden="true">❓</span> Unclaimed
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+      </div>
+    </div>
+  );
+}
+
 // ── Animated progress bar ──────────────────────────────────────────────────────
 function AnimatedBar({ pct }) {
   const [width, setWidth] = useState(0);
@@ -1029,6 +1128,15 @@ function WorldTree() {
         {/* 2 ── Feed Tree + Cooldown cards */}
         <FadeCard delay={60}>
           <FeedSection userId={userId} onFed={handleFed} treeGlowing={treeGlowing} />
+        </FadeCard>
+
+        {/* 2b ── World Tree Legends */}
+        <FadeCard delay={90}>
+          <WorldTreeLegends
+            badges={NEXT_REWARD_BADGES}
+            globalBadgeClaims={globalBadgeClaims}
+            loading={dataLoading}
+          />
         </FadeCard>
 
         {/* 3 ── Community Stats */}
