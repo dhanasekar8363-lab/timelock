@@ -1,11 +1,43 @@
 /* ============================================================
    FloatingBadge.css
-   MMORPG-style achievement popup — purple glassmorphism.
-   Mobile-first. Badge artwork is constrained to a fixed icon
-   size so text remains the primary focus of the card.
+   MMORPG-style achievement popup for World Tree badge claims.
+
+   STRUCTURE:
+     § 1  Design tokens
+     § 2  Backdrop (modal overlay)
+     § 3  Card (modal card)
+     § 4  Eyebrow
+     § 5  Icon wrap + halo rings
+     § 6  Icon frame (hard size cap)
+     § 7  Badge image / emoji fallback
+     § 8  Orbit ring
+     § 9  Sparkle burst (win)
+     § 10 Meta (name, description, rarity)
+     § 11 Result states
+     § 12 Claim button
+     § 13 Claiming spinner
+     § 14 Login hint
+     § 15 Close button  ← NEW
+     § 16 Responsive ≥ 480 px
+     § 17 Reduced motion
+
+     § 18 Floating Orb Collectible  ← NEW
+            .fb-orb-root          fixed anchor, floats up/down
+            .fb-orb-container     relative context for children
+            .fb-orb-halo          ambient glow rings
+            .fb-orb-disc          the circular badge
+            .fb-orb-img / emoji   badge artwork
+            .fb-orb-sparkles      spinning sparkle ring wrapper
+            .fb-orb-sparkle       individual sparkle dot
+            .fb-orb-tip           "Tap to Claim" label
+            Vanish animation      dissolve when badge is taken
+     § 19 Mobile orb sizing (≤ 479 px)
    ============================================================ */
 
-/* ── Design tokens (mirrors WorldTree.css palette) ────────── */
+
+/* ─────────────────────────────────────────────────────────────
+   § 1  Design tokens
+───────────────────────────────────────────────────────────── */
 :root {
   --fb-purple-deep:    rgba(25,  6,  56, 0.92);
   --fb-purple-mid:     rgba(50, 10, 100, 0.70);
@@ -18,22 +50,19 @@
   --fb-won-green:      #34d399;
   --fb-lost-muted:     rgba(180, 120, 255, 0.55);
 
-  /* Badge icon — the single most-important size token.
-     Keep this small so text outweighs the image on all screens. */
-  --fb-icon-size:      80px;   /* mobile */
-  --fb-icon-size-md:   96px;   /* ≥ 480 px */
+  /* Badge icon — keep this small so text outweighs the image on all screens. */
+  --fb-icon-size:    80px;   /* mobile */
+  --fb-icon-size-md: 96px;   /* ≥ 480 px */
 }
 
-/* ── Backdrop ──────────────────────────────────────────────── */
-/*
-  Rendered via createPortal to document.body.
-  Uses fixed positioning to cover the full viewport and act as a
-  dim overlay that centres the card. Animates in/out with opacity.
-*/
+
+/* ─────────────────────────────────────────────────────────────
+   § 2  Backdrop
+───────────────────────────────────────────────────────────── */
 .fb-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 9999;   /* above everything, including wt-tree-section z-index:5 */
+  z-index: 9999;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -46,7 +75,6 @@
 
 .fb-backdrop--won,
 .fb-backdrop--lost {
-  /* Keep backdrop visible while result plays out */
   pointer-events: none;
 }
 
@@ -55,26 +83,17 @@
   pointer-events: none;
 }
 
-@keyframes fb-backdrop-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
+@keyframes fb-backdrop-in  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fb-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
 
-@keyframes fb-backdrop-out {
-  from { opacity: 1; }
-  to   { opacity: 0; }
-}
 
-/* ── Card ──────────────────────────────────────────────────── */
-/*
-  Max-width is deliberately narrow (340 / 400 px) so the card reads
-  as an HUD notification, not a full-screen takeover.
-  Padding gives text room to breathe without expanding the icon area.
-*/
+/* ─────────────────────────────────────────────────────────────
+   § 3  Card
+───────────────────────────────────────────────────────────── */
 .fb-card {
   position: relative;
   width: 100%;
-  max-width: 340px;     /* mobile: compact notification width */
+  max-width: 340px;
   padding: 24px 20px 20px;
   border-radius: 24px;
   background: var(--fb-purple-deep);
@@ -91,7 +110,7 @@
   align-items: center;
   gap: 12px;
   animation: fb-card-in 0.4s cubic-bezier(0.34, 1.3, 0.64, 1) forwards;
-  overflow: hidden;   /* prevents any child from leaking outside border-radius */
+  overflow: hidden;
 }
 
 .fb-card--won {
@@ -124,11 +143,14 @@
 }
 
 @keyframes fb-card-out {
-  from { opacity: 1; transform: translateY(0)   scale(1);    }
+  from { opacity: 1; transform: translateY(0)    scale(1);    }
   to   { opacity: 0; transform: translateY(10px) scale(0.96); }
 }
 
-/* ── Eyebrow ───────────────────────────────────────────────── */
+
+/* ─────────────────────────────────────────────────────────────
+   § 4  Eyebrow
+───────────────────────────────────────────────────────────── */
 .fb-eyebrow {
   display: flex;
   align-items: center;
@@ -141,22 +163,13 @@
   color: var(--fb-text-dim);
 }
 
-.fb-eyebrow-icon {
-  font-size: 13px;
-  line-height: 1;
-}
+.fb-eyebrow-icon  { font-size: 13px; line-height: 1; }
+.fb-eyebrow-label { line-height: 1; }
 
-.fb-eyebrow-label {
-  line-height: 1;
-}
 
-/* ── Icon wrap ─────────────────────────────────────────────── */
-/*
-  This wrapper provides the positioning context for the orbit ring,
-  halo rings, and sparkle particles. It has a defined height so it
-  never grows with the image — the image lives inside fb-icon-frame
-  which is hard-capped at --fb-icon-size.
-*/
+/* ─────────────────────────────────────────────────────────────
+   § 5  Icon wrap + halo rings
+───────────────────────────────────────────────────────────── */
 .fb-icon-wrap {
   position: relative;
   width: var(--fb-icon-size);
@@ -167,7 +180,6 @@
   flex-shrink: 0;
 }
 
-/* ── Halo rings (glow behind the badge) ───────────────────── */
 .fb-halo {
   position: absolute;
   inset: -16px;
@@ -188,20 +200,18 @@
   50%       { opacity: 1.0; transform: scale(1.08); }
 }
 
-/* ── Icon frame — THE PRIMARY SIZE CONSTRAINT ──────────────── */
-/*
-  Hard-fixed width and height.  Nothing inside can make this grow.
-  object-fit: contain on the <img> guarantees the badge artwork is
-  fully visible regardless of its native aspect ratio.
-*/
+
+/* ─────────────────────────────────────────────────────────────
+   § 6  Icon frame (hard size cap)
+───────────────────────────────────────────────────────────── */
 .fb-icon-frame {
   position: relative;
   z-index: 2;
-  width: var(--fb-icon-size);      /* fixed, never flex-grows */
-  height: var(--fb-icon-size);     /* fixed */
-  min-width: var(--fb-icon-size);  /* prevents shrink in column flex */
+  width: var(--fb-icon-size);
+  height: var(--fb-icon-size);
+  min-width: var(--fb-icon-size);
   min-height: var(--fb-icon-size);
-  max-width: var(--fb-icon-size);  /* belt-and-suspenders: no overflow */
+  max-width: var(--fb-icon-size);
   max-height: var(--fb-icon-size);
   border-radius: 18px;
   background: rgba(50, 10, 100, 0.55);
@@ -209,7 +219,7 @@
   box-shadow:
     0 0 16px rgba(140, 60, 255, 0.40),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  overflow: hidden;    /* clips anything that somehow tries to escape */
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -232,25 +242,21 @@
   to   { transform: rotate(360deg); }
 }
 
-/* ── Badge image — constrained, never full-bleed ───────────── */
-/*
-  width/height 100% fills the fb-icon-frame container exactly.
-  object-fit: contain keeps the artwork fully visible and correctly
-  proportioned — no cropping, no overflow.
-  The parent's overflow:hidden clips any 1-2 px sub-pixel overage.
-*/
+
+/* ─────────────────────────────────────────────────────────────
+   § 7  Badge image / emoji fallback
+───────────────────────────────────────────────────────────── */
 .fb-badge-img {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;   /* always fully visible, correct aspect ratio */
+  object-fit: contain;
   object-position: center;
-  border-radius: 16px;   /* matches frame radius minus border width */
+  border-radius: 16px;
   user-select: none;
   pointer-events: none;
 }
 
-/* ── Fallback emoji (shown when image fails or is absent) ──── */
 .fb-badge-emoji {
   display: flex;
   align-items: center;
@@ -261,12 +267,10 @@
   line-height: 1;
 }
 
-/* ── Orbit ring ────────────────────────────────────────────── */
-/*
-  The orbit ring sits outside fb-icon-wrap via absolute positioning
-  relative to fb-icon-wrap. It must be bigger than the icon frame
-  to orbit visually around it.
-*/
+
+/* ─────────────────────────────────────────────────────────────
+   § 8  Orbit ring (inside modal, idle state)
+───────────────────────────────────────────────────────────── */
 .fb-orbit-ring {
   position: absolute;
   inset: -14px;
@@ -283,8 +287,7 @@
   background: #c084fc;
   border-radius: 50%;
   box-shadow: 0 0 6px rgba(192, 132, 252, 0.8);
-  /* 8 dots evenly around the ring */
-  top:  50%;
+  top: 50%;
   left: 50%;
   transform-origin: 0 0;
   transform:
@@ -312,7 +315,10 @@
     translate(-50%, -50%) scale(1.3); }
 }
 
-/* ── Sparkle burst (on win) ────────────────────────────────── */
+
+/* ─────────────────────────────────────────────────────────────
+   § 9  Sparkle burst (win)
+───────────────────────────────────────────────────────────── */
 .fb-sparks {
   position: absolute;
   inset: 0;
@@ -336,29 +342,19 @@
 @keyframes fb-spark-fly {
   0%   {
     opacity: 1;
-    transform:
-      translate(-50%, -50%)
-      rotate(var(--angle))
-      translateX(0)
-      scale(0.6);
+    transform: translate(-50%, -50%) rotate(var(--angle)) translateX(0) scale(0.6);
   }
   60%  { opacity: 1; }
   100% {
     opacity: 0;
-    transform:
-      translate(-50%, -50%)
-      rotate(var(--angle))
-      translateX(var(--dist))
-      scale(1.4);
+    transform: translate(-50%, -50%) rotate(var(--angle)) translateX(var(--dist)) scale(1.4);
   }
 }
 
-/* ── Meta (name + description + rarity) ───────────────────── */
-/*
-  Text is laid out below the icon area and takes priority.
-  Font sizes are deliberately larger than the icon to make text
-  feel like the headline and the icon an accent.
-*/
+
+/* ─────────────────────────────────────────────────────────────
+   § 10  Meta (badge name, description, rarity)
+───────────────────────────────────────────────────────────── */
 .fb-meta {
   display: flex;
   flex-direction: column;
@@ -369,7 +365,7 @@
 
 .fb-badge-name {
   margin: 0;
-  font-size: 20px;       /* prominent — bigger than the icon implies */
+  font-size: 20px;
   font-weight: 900;
   letter-spacing: 0.01em;
   line-height: 1.2;
@@ -395,7 +391,10 @@
   text-shadow: 0 0 8px rgba(255, 180, 40, 0.55);
 }
 
-/* ── Result states ─────────────────────────────────────────── */
+
+/* ─────────────────────────────────────────────────────────────
+   § 11  Result states
+───────────────────────────────────────────────────────────── */
 .fb-result {
   width: 100%;
   display: flex;
@@ -421,7 +420,10 @@
   line-height: 1.4;
 }
 
-/* ── Claim button ──────────────────────────────────────────── */
+
+/* ─────────────────────────────────────────────────────────────
+   § 12  Claim button
+───────────────────────────────────────────────────────────── */
 .fb-claim-btn {
   position: relative;
   width: 100%;
@@ -436,8 +438,7 @@
   letter-spacing: 0.02em;
   cursor: pointer;
   overflow: hidden;
-  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1),
-              box-shadow 0.2s ease;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
   box-shadow: 0 4px 24px rgba(120, 50, 220, 0.55);
   margin-top: 4px;
 }
@@ -451,7 +452,6 @@
   transform: scale(0.97);
 }
 
-/* Shimmer sweep across the button */
 .fb-btn-shimmer {
   position: absolute;
   inset: 0;
@@ -465,7 +465,6 @@
   100% { transform: translateX(200%);  }
 }
 
-/* Locked / logged-out state */
 .fb-claim-btn--locked {
   background: rgba(60, 20, 100, 0.45);
   border-color: rgba(120, 60, 180, 0.30);
@@ -474,11 +473,12 @@
   box-shadow: none;
 }
 
-.fb-claim-btn--locked .fb-btn-shimmer {
-  display: none;
-}
+.fb-claim-btn--locked .fb-btn-shimmer { display: none; }
 
-/* ── Claiming spinner ──────────────────────────────────────── */
+
+/* ─────────────────────────────────────────────────────────────
+   § 13  Claiming spinner
+───────────────────────────────────────────────────────────── */
 .fb-claiming-indicator {
   display: flex;
   align-items: center;
@@ -500,11 +500,12 @@
   flex-shrink: 0;
 }
 
-@keyframes fb-spin {
-  to { transform: rotate(360deg); }
-}
+@keyframes fb-spin { to { transform: rotate(360deg); } }
 
-/* ── Login hint ────────────────────────────────────────────── */
+
+/* ─────────────────────────────────────────────────────────────
+   § 14  Login hint
+───────────────────────────────────────────────────────────── */
 .fb-login-hint {
   margin: 0;
   font-size: 11px;
@@ -512,15 +513,42 @@
   line-height: 1.4;
 }
 
-/* ── Responsive: ≥ 480 px ──────────────────────────────────── */
-/*
-  Grow the icon slightly on wider screens (still far below the card
-  width) and widen the card to use available space better.
-*/
+
+/* ─────────────────────────────────────────────────────────────
+   § 15  Close button (idle phase, top-right of modal card)  NEW
+───────────────────────────────────────────────────────────── */
+.fb-close-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid rgba(160, 80, 255, 0.35);
+  background: rgba(60, 15, 110, 0.55);
+  color: rgba(200, 160, 255, 0.70);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.18s ease, color 0.18s ease;
+  z-index: 5;
+}
+
+.fb-close-btn:hover {
+  background: rgba(80, 20, 140, 0.80);
+  color: rgba(230, 190, 255, 1);
+}
+
+
+/* ─────────────────────────────────────────────────────────────
+   § 16  Responsive ≥ 480 px
+───────────────────────────────────────────────────────────── */
 @media (min-width: 480px) {
-  :root {
-    --fb-icon-size: var(--fb-icon-size-md);   /* 96 px */
-  }
+  :root { --fb-icon-size: var(--fb-icon-size-md); }
 
   .fb-card {
     max-width: 400px;
@@ -528,16 +556,14 @@
     gap: 14px;
   }
 
-  .fb-badge-name {
-    font-size: 22px;
-  }
-
-  .fb-badge-desc {
-    font-size: 14px;
-  }
+  .fb-badge-name { font-size: 22px; }
+  .fb-badge-desc { font-size: 14px; }
 }
 
-/* ── Reduced motion ────────────────────────────────────────── */
+
+/* ─────────────────────────────────────────────────────────────
+   § 17  Reduced motion
+───────────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .fb-backdrop,
   .fb-card,
@@ -549,11 +575,321 @@
   .fb-spark--burst,
   .fb-btn-shimmer,
   .fb-icon-frame--claiming,
-  .fb-spinner {
+  .fb-spinner,
+  /* orb */
+  .fb-orb-root,
+  .fb-orb-root--vanish,
+  .fb-orb-disc,
+  .fb-orb-halo,
+  .fb-orb-sparkles,
+  .fb-orb-sparkle {
     animation: none !important;
     transition: none !important;
   }
 
   .fb-backdrop--gone { opacity: 0; }
   .fb-card--gone     { opacity: 0; }
+  .fb-orb-root--vanish { opacity: 0; }
+}
+
+
+/* ═════════════════════════════════════════════════════════════
+   § 18  Floating Orb Collectible  — NEW
+   ═════════════════════════════════════════════════════════════
+
+   The orb is a small circular badge that hovers near the World
+   Tree at a fixed viewport-percentage position. It uses:
+
+   position: fixed → escapes every stacking context automatically
+                      (no portal needed; position:fixed is always
+                       relative to the viewport, not a container)
+
+   transform: translate(-50%, -50%) → centres the orb on its
+                      top/left anchor point
+
+   The float animation is added on top of the centering translate
+   so the two transforms compose correctly.
+   ═════════════════════════════════════════════════════════════ */
+
+/* ── Root anchor (fixed, floats up and down) ────────────────── */
+.fb-orb-root {
+  position: fixed;
+  z-index: 800;           /* above tree section (z:5), below modals (z:9999) */
+  /* Centre on top/left anchor */
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  /* Gentle float — composes with centering translate */
+  animation: fb-orb-float 3.8s ease-in-out infinite;
+  user-select: none;
+  -webkit-user-select: none;
+  /* Remove tap highlight on mobile */
+  -webkit-tap-highlight-color: transparent;
+}
+
+.fb-orb-root:focus-visible {
+  outline: 2px solid rgba(192, 132, 252, 0.85);
+  outline-offset: 8px;
+  border-radius: 50%;
+}
+
+/* Vanish: scale up briefly then shrink to nothing (orb "poofed") */
+.fb-orb-root--vanish {
+  animation: fb-orb-vanish 0.75s ease forwards;
+  pointer-events: none;
+}
+
+@keyframes fb-orb-float {
+  0%, 100% { transform: translate(-50%, -50%) translateY(0px);    }
+  50%       { transform: translate(-50%, -50%) translateY(-14px);  }
+}
+
+@keyframes fb-orb-vanish {
+  0%   { opacity: 1;   transform: translate(-50%, -50%) scale(1);    }
+  35%  { opacity: 0.7; transform: translate(-50%, -50%) scale(1.28); }
+  100% { opacity: 0;   transform: translate(-50%, -50%) scale(0.15); }
+}
+
+
+/* ── Inner container (relative context for halo / sparkles) ── */
+.fb-orb-container {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+/* ── Ambient glow halos (behind the disc) ──────────────────── */
+.fb-orb-halo {
+  position: absolute;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(160, 80, 255, 0.30) 0%, transparent 70%);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: fb-orb-halo-pulse 2.8s ease-in-out infinite;
+}
+
+.fb-orb-halo--2 {
+  width: 120px;
+  height: 120px;
+  background: radial-gradient(circle, rgba(100, 20, 200, 0.18) 0%, transparent 70%);
+  animation-delay: 1.1s;
+}
+
+@keyframes fb-orb-halo-pulse {
+  0%, 100% { opacity: 0.50; transform: translate(-50%, -50%) scale(1);    }
+  50%       { opacity: 1.00; transform: translate(-50%, -50%) scale(1.14); }
+}
+
+
+/* ── The circular badge disc ───────────────────────────────── */
+.fb-orb-disc {
+  position: relative;
+  z-index: 2;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: rgba(32, 7, 72, 0.90);
+  border: 2.5px solid rgba(192, 100, 255, 0.78);
+  box-shadow:
+    0 0 18px rgba(160, 80,  255, 0.55),
+    0 0 38px rgba(120, 40,  220, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  /* Soft glow pulse syncs with the halo */
+  animation: fb-disc-glow 2.8s ease-in-out infinite;
+  transition:
+    transform  0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.22s ease;
+}
+
+/* Hover / focus: disc grows and brightens */
+.fb-orb-root:hover       .fb-orb-disc,
+.fb-orb-root:focus-visible .fb-orb-disc {
+  transform: scale(1.16);
+  box-shadow:
+    0 0 28px rgba(200, 110, 255, 0.85),
+    0 0 56px rgba(140, 60,  240, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+@keyframes fb-disc-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 18px rgba(160, 80,  255, 0.55),
+      0 0 38px rgba(120, 40,  220, 0.32),
+      inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  }
+  50% {
+    box-shadow:
+      0 0 28px rgba(200, 110, 255, 0.84),
+      0 0 58px rgba(150, 60,  240, 0.55),
+      inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  }
+}
+
+/* Badge artwork inside the disc */
+.fb-orb-img {
+  display: block;
+  width: 78%;
+  height: 78%;
+  object-fit: contain;
+  border-radius: 50%;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Emoji fallback */
+.fb-orb-emoji {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+
+/* ── Orbiting sparkle ring ──────────────────────────────────── */
+/*
+  .fb-orb-sparkles is a square container that spins as a unit.
+  Each .fb-orb-sparkle child sits at a fixed radial distance from
+  the container's centre (rotate angle → translateX outward).
+  Because the parent spins, the children appear to orbit the badge.
+  Each child also has its own opacity/size twinkle animation.
+*/
+.fb-orb-sparkles {
+  position: absolute;
+  width: 90px;
+  height: 90px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 3;
+  animation: fb-orb-ring-spin 7s linear infinite;
+}
+
+.fb-orb-sparkle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  font-size: 8px;
+  color: rgba(232, 180, 255, 0.92);
+  text-shadow: 0 0 5px rgba(200, 100, 255, 0.75);
+  pointer-events: none;
+  /* Radial placement: rotate to angle, push outward by orbit radius */
+  transform:
+    rotate(var(--orb-angle))
+    translateX(41px)
+    translate(-50%, -50%);
+  animation: fb-orb-sparkle-twinkle 1.7s ease-in-out infinite;
+  /* animationDelay applied inline per sparkle */
+}
+
+@keyframes fb-orb-ring-spin {
+  from { transform: translate(-50%, -50%) rotate(0deg);   }
+  to   { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+@keyframes fb-orb-sparkle-twinkle {
+  0%, 100% { opacity: 0.22; font-size: 6px;  }
+  50%       { opacity: 1.00; font-size: 10px; }
+}
+
+
+/* ── "Tap to Claim" tooltip ─────────────────────────────────── */
+.fb-orb-tip {
+  background: rgba(22, 5, 50, 0.92);
+  border: 1px solid rgba(160, 80, 255, 0.45);
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(218, 168, 255, 0.92);
+  white-space: nowrap;
+  pointer-events: none;
+  /* Desktop: hidden until hover/focus */
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.fb-orb-root:hover        .fb-orb-tip,
+.fb-orb-root:focus-visible .fb-orb-tip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Touch devices: always show a faint hint (no hover available) */
+@media (hover: none) {
+  .fb-orb-tip {
+    opacity: 0.72;
+    transform: translateY(0);
+  }
+}
+
+
+/* ═════════════════════════════════════════════════════════════
+   § 19  Mobile orb sizing (≤ 479 px)
+   ═════════════════════════════════════════════════════════════
+   Slightly smaller disc and sparkle radius on narrow screens
+   so the orb doesn't dominate the layout, and stays away from
+   the bottom navigation bar and the top header.
+   ═════════════════════════════════════════════════════════════ */
+@media (max-width: 479px) {
+  /* Shrink the relative container */
+  .fb-orb-container {
+    width: 52px;
+    height: 52px;
+  }
+
+  /* Smaller disc */
+  .fb-orb-disc {
+    width: 48px;
+    height: 48px;
+  }
+
+  /* Smaller halos */
+  .fb-orb-halo       { width: 72px;  height: 72px;  }
+  .fb-orb-halo--2    { width: 96px;  height: 96px;  }
+
+  /* Tighter sparkle ring */
+  .fb-orb-sparkles   { width: 72px;  height: 72px;  }
+
+  .fb-orb-sparkle {
+    font-size: 7px;
+    transform:
+      rotate(var(--orb-angle))
+      translateX(32px)
+      translate(-50%, -50%);
+  }
+
+  @keyframes fb-orb-sparkle-twinkle {
+    0%, 100% { opacity: 0.22; font-size: 5px; }
+    50%       { opacity: 1.00; font-size: 8px; }
+  }
+
+  /* Smaller emoji inside disc */
+  .fb-orb-emoji { font-size: 20px; }
+
+  /* Ensure float amplitude doesn't overdrive small screens */
+  @keyframes fb-orb-float {
+    0%, 100% { transform: translate(-50%, -50%) translateY(0px);   }
+    50%       { transform: translate(-50%, -50%) translateY(-9px);  }
+  }
 }
