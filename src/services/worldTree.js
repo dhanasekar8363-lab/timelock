@@ -1,5 +1,8 @@
 import { supabase } from "./supabase";
-import { getActiveStorm, calculateStormGrowth } from "./stormService";
+import {
+  getActiveStorm,
+  calculateStormGrowth,
+} from "./stormService";
 
 // ==================== WORLD TREE (extended with Memory Storm) ====================
 //

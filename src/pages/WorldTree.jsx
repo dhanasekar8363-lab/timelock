@@ -25,6 +25,7 @@ import {
   getActiveStorm,
   calculateStormGrowth,
   getStormTimeLeft,
+  finalizeStormGrowth,
 } from "../services/stormService";
 import worldTreeBadges from "../data/worldTreeBadges";
 import FloatingBadge from "../components/FloatingBadge";
@@ -901,6 +902,9 @@ function WorldTree() {
 
   const loadData = useCallback(async () => {
     setDataLoading(true);
+
+    await finalizeStormGrowth();
+
     const [treeRes, contribRes] = await Promise.all([
       getWorldTree(),
       getTopContributors(50),

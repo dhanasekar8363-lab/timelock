@@ -1,8 +1,7 @@
 // ============================================================
 // FloatingBadge.jsx
-// Legendary floating badge that orbits the World Tree.
-// Appears when a milestone is available and nobody has claimed it.
-// Disappears permanently the instant someone wins it.
+// MMORPG-style achievement popup for World Tree badge claims.
+// Centered card layout — no full-bleed artwork.
 // ============================================================
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -16,7 +15,7 @@ function SparkleParticles({ active }) {
     distance: 50 + (i % 4) * 18,
     size: 6 + (i % 3) * 4,
     emoji: ["✨", "⭐", "💫", "🌟", "✦"][i % 5],
-    delay: (i * 40),
+    delay: i * 40,
   }));
 
   return (
@@ -39,7 +38,7 @@ function SparkleParticles({ active }) {
   );
 }
 
-// ── Orbit ring ────────────────────────────────────────────────────────────
+// ── Orbit ring around the badge icon ─────────────────────────────────────
 function OrbitRing() {
   return (
     <div className="fb-orbit-ring" aria-hidden="true">
@@ -54,26 +53,6 @@ function OrbitRing() {
   );
 }
 
-// ── Claim success overlay ─────────────────────────────────────────────────
-function ClaimOverlay({ badge, visible, winner }) {
-  return (
-    <div className={`fb-claim-overlay ${visible ? "fb-claim-overlay--visible" : ""}`} aria-live="assertive">
-      <div className="fb-claim-content">
-        <div className="fb-claim-emoji">{badge?.fallbackIcon || "🏅"}</div>
-        <p className="fb-claim-headline">
-          {winner === "you" ? `🎉 You claimed ${badge?.name}!` : `${badge?.name} was claimed!`}
-        </p>
-        {winner === "you" && (
-          <p className="fb-claim-sub">First Discoverer · Added to your collection</p>
-        )}
-        {winner === "other" && (
-          <p className="fb-claim-sub">Another guardian was faster…</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ── Main component ────────────────────────────────────────────────────────
 /**
  * FloatingBadge
@@ -82,7 +61,6 @@ function ClaimOverlay({ badge, visible, winner }) {
  *   badge        — { level, key, name, description, image, fallbackIcon }
  *   userId       — current user's UUID (null if logged out)
  *   onClaim      — async (badge) => { claimed, alreadyClaimed }
- *                  Should call claimWorldTreeBadge from supabase.js
  *   visible      — boolean: show the badge (false = hide immediately)
  */
 export default function FloatingBadge({ badge, userId, onClaim, visible }) {
@@ -100,7 +78,7 @@ export default function FloatingBadge({ badge, userId, onClaim, visible }) {
     }
   }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleClick = useCallback(async () => {
+  const handleClaim = useCallback(async () => {
     if (!userId || claimingRef.current || phase !== "idle") return;
     claimingRef.current = true;
     setPhase("claiming");
@@ -109,14 +87,12 @@ export default function FloatingBadge({ badge, userId, onClaim, visible }) {
       const result = await onClaim(badge);
 
       if (result.claimed) {
-        // WE WON
         setShowSparks(true);
         setWinner("you");
         setPhase("won");
         setTimeout(() => setShowSparks(false), 1800);
         setTimeout(() => setPhase("gone"), 3200);
       } else {
-        // Someone else beat us
         setWinner("other");
         setPhase("lost");
         setTimeout(() => setPhase("gone"), 2600);
@@ -130,67 +106,112 @@ export default function FloatingBadge({ badge, userId, onClaim, visible }) {
 
   if (phase === "gone" || (!visible && phase === "idle")) return null;
 
-  const isActive = phase === "idle";
+  const isIdle     = phase === "idle";
+  const isClaiming = phase === "claiming";
+  const isWon      = phase === "won";
+  const isLost     = phase === "lost";
+
+  // Result state shown inside the card after claim attempt
+  const resultState = isWon ? "won" : isLost ? "lost" : null;
 
   return (
-    <div className={`fb-root fb-root--${phase}`} aria-label={`Claim ${badge.name} badge`}>
-      {/* Glow halo */}
-      <div className="fb-halo" aria-hidden="true" />
-      <div className="fb-halo fb-halo--2" aria-hidden="true" />
+    /* Full-screen backdrop — centres the card and dims the tree behind it */
+    <div className={`fb-backdrop fb-backdrop--${phase}`} role="dialog" aria-modal="true" aria-label={`Claim ${badge.name} badge`}>
 
-      {/* Orbit ring */}
-      {isActive && <OrbitRing />}
+      {/* ── Achievement card ── */}
+      <div className={`fb-card fb-card--${phase}`}>
 
-      {/* The badge itself */}
-      <button
-        className={`fb-badge ${!userId ? "fb-badge--locked" : ""} ${phase === "claiming" ? "fb-badge--claiming" : ""}`}
-        onClick={handleClick}
-        disabled={!userId || !isActive}
-        aria-disabled={!userId || !isActive}
-      >
-        <div className="fb-badge-inner">
-          {badge.image ? (
-            <img
-              src={badge.image}
-              alt={badge.name}
-              className="fb-badge-img"
-              onError={(e) => { e.target.style.display = "none"; }}
-            />
-          ) : (
-            <span className="fb-badge-emoji">{badge.fallbackIcon}</span>
-          )}
+        {/* Top eyebrow */}
+        <div className="fb-eyebrow" aria-hidden="true">
+          <span className="fb-eyebrow-icon">🏅</span>
+          <span className="fb-eyebrow-label">Badge Unlocked</span>
         </div>
 
-        {/* Shimmer sweep */}
-        <div className="fb-shimmer" aria-hidden="true" />
+        {/* Badge icon area */}
+        <div className="fb-icon-wrap">
+          {isIdle && <OrbitRing />}
 
-        {/* Rarity label */}
-        {isActive && (
-          <div className="fb-rarity-tag" aria-hidden="true">
-            ✦ LEGENDARY
+          {/* Glow halo rings */}
+          <div className="fb-halo" aria-hidden="true" />
+          <div className="fb-halo fb-halo--2" aria-hidden="true" />
+
+          {/* Badge image — constrained, never full-bleed */}
+          <div className={`fb-icon-frame ${isClaiming ? "fb-icon-frame--claiming" : ""} ${isWon ? "fb-icon-frame--won" : ""}`}>
+            {badge.image ? (
+              <img
+                src={badge.image}
+                alt={badge.name}
+                className="fb-badge-img"
+                onError={(e) => { e.target.style.display = "none"; e.target.nextSibling.style.display = "flex"; }}
+              />
+            ) : null}
+            <span
+              className="fb-badge-emoji"
+              style={{ display: badge.image ? "none" : "flex" }}
+            >
+              {badge.fallbackIcon || "🏅"}
+            </span>
+          </div>
+
+          {/* Sparkles burst on win */}
+          <SparkleParticles active={showSparks} />
+        </div>
+
+        {/* Badge name & description */}
+        {!resultState && (
+          <div className="fb-meta">
+            <h2 className="fb-badge-name">{badge.name}</h2>
+            {badge.description && (
+              <p className="fb-badge-desc">{badge.description}</p>
+            )}
+            {isIdle && (
+              <span className="fb-rarity-tag" aria-hidden="true">✦ LEGENDARY</span>
+            )}
           </div>
         )}
-      </button>
 
-      {/* Sparkle burst */}
-      <SparkleParticles active={showSparks} />
+        {/* Result state */}
+        {resultState && (
+          <div className="fb-result" aria-live="assertive">
+            {isWon ? (
+              <>
+                <p className="fb-result-headline fb-result-headline--won">🎉 You claimed it!</p>
+                <p className="fb-result-sub">First Discoverer · Added to your collection</p>
+              </>
+            ) : (
+              <>
+                <p className="fb-result-headline fb-result-headline--lost">Another guardian was faster…</p>
+                <p className="fb-result-sub">{badge.name} has been claimed.</p>
+              </>
+            )}
+          </div>
+        )}
 
-      {/* Badge name tooltip */}
-      {isActive && (
-        <div className="fb-tooltip" role="tooltip">
-          <span className="fb-tooltip-name">{badge.name}</span>
-          <span className="fb-tooltip-hint">
-            {userId ? "Tap to claim forever" : "Log in to claim"}
-          </span>
-        </div>
-      )}
+        {/* Claim button */}
+        {isIdle && (
+          <button
+            className={`fb-claim-btn ${!userId ? "fb-claim-btn--locked" : ""}`}
+            onClick={handleClaim}
+            disabled={!userId}
+            aria-disabled={!userId}
+          >
+            <span className="fb-btn-shimmer" aria-hidden="true" />
+            {userId ? "Claim Badge" : "Log in to Claim"}
+          </button>
+        )}
 
-      {/* Claim overlay */}
-      <ClaimOverlay
-        badge={badge}
-        visible={phase === "won" || phase === "lost"}
-        winner={winner}
-      />
+        {isClaiming && (
+          <div className="fb-claiming-indicator" aria-live="polite">
+            <span className="fb-spinner" aria-hidden="true" />
+            Claiming…
+          </div>
+        )}
+
+        {/* Rarity hint when logged out */}
+        {isIdle && !userId && (
+          <p className="fb-login-hint">Log in to be the First Discoverer</p>
+        )}
+      </div>
     </div>
   );
 }
