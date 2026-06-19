@@ -1,6 +1,8 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import unlockBg from "../assets/backgrounds/unlock-bg.png";
 import { usePet } from "../contexts/PetContext";
+import { useAuth } from "../contexts/AuthContext";
+import { supabase } from "../services/supabase";
 import { logCapsuleOpened } from "../services/worldTreeActivity";
 import "./UnlockedCapsule.css";
 
@@ -230,6 +232,12 @@ function UnlockedCapsule({ capsule }) {
   const cardRef = useRef(null);
 
   const { triggerCapsuleUnlockReward } = usePet();
+  const { user } = useAuth();
+
+  // Guards against firing the activity-log insert twice for the same
+  // capsule-open event (StrictMode double-invoke, fast re-renders, etc).
+  // Cross-refresh dedup is handled separately via localStorage below.
+  const activityLoggedRef = useRef(false);
 
   // Fire the XP reward exactly once when this component mounts,
   // i.e. when the user has successfully opened the capsule.
@@ -255,14 +263,63 @@ function UnlockedCapsule({ capsule }) {
   // "open" action is already done — this is logging only, it does not
   // award growth itself, so it can't double-count whatever growth (if
   // any) is granted elsewhere for opening a capsule.
+  //
+  // The Live Feed should show the *account* username (matching the
+  // capsule-sent flow), not the capsule's receiver/sender display name —
+  // so we resolve `profiles.username` for the logged-in user instead of
+  // falling back to receiverName/senderName.
   useEffect(() => {
-    const openerId   = capsule?.receiver_id || capsule?.receiverId || null;
-    const openerName = receiverName || senderName || "Someone";
-    logCapsuleOpened(openerId, openerName, 200).catch((e) =>
-      console.warn("[WorldTreeActivity] logCapsuleOpened failed silently:", e)
-    );
+    const capsuleId = capsule?.id;
+    if (!capsuleId) return; // nothing to dedup against / log meaningfully
+
+    // Dedup guard #1 — same-mount re-entry (e.g. StrictMode double effect).
+    if (activityLoggedRef.current) return;
+
+    // Dedup guard #2 — across refreshes/revisits in this browser.
+    // Mirrors the intent of the awardCapsuleOpened session guard in
+    // CapsuleViewer.jsx, but since this component doesn't persist across
+    // mounts, we use localStorage keyed by capsule id instead of a ref.
+    // NOTE: this is a client-side guard only. If a server-side dedup
+    // mechanism exists (e.g. a unique constraint backing
+    // awardCapsuleOpened), this should ideally check/set that instead of
+    // (or in addition to) localStorage for cross-device correctness.
+    const dedupKey = `tl_capsule_opened_logged:${capsuleId}`;
+    if (localStorage.getItem(dedupKey)) return;
+
+    activityLoggedRef.current = true;
+    localStorage.setItem(dedupKey, "1");
+
+    (async () => {
+      const openerId = capsule?.receiver_id || capsule?.receiverId || user?.id || null;
+
+      let openerName = "Someone";
+
+      if (user?.id) {
+        // Resolve the logged-in account's username from `profiles`,
+        // matching how capsule-sent activity logging attributes the actor.
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("username")
+          .eq("id", user.id)
+          .single();
+
+        if (profileError) {
+          console.warn("[WorldTreeActivity] profile username lookup failed:", profileError);
+        }
+
+        openerName = profile?.username || user?.email || receiverName || senderName || "Someone";
+      } else {
+        // No authenticated user available — fall back to capsule display
+        // names so the feed still has something readable.
+        openerName = receiverName || senderName || "Someone";
+      }
+
+      logCapsuleOpened(openerId, openerName, 200).catch((e) =>
+        console.warn("[WorldTreeActivity] logCapsuleOpened failed silently:", e)
+      );
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // intentionally empty — log fires once per mount, same as the reward effect
+  }, [capsule?.id]); // re-evaluate only if the capsule identity changes
 
   const formattedDate = unlockDate
     ? new Date(unlockDate).toLocaleDateString("en-US", {

@@ -626,6 +626,28 @@ function CreateCapsule() {
     const currentUserId = user.id;
     console.log("🔐 Authenticated user.id for new capsule:", currentUserId);
 
+    // 🌳 World Tree — resolve the LOGGED-IN account's own username for the
+    // activity feed. This is intentionally separate from `senderName`
+    // (the free-text "From" field stored on the capsule itself, which is
+    // never touched here). Falls back to senderName only if the profile
+    // lookup fails, so the feed never silently drops the row.
+    let accountUsername = senderName.trim();
+    try {
+      const { data: ownProfile, error: ownProfileError } = await supabase
+        .from("profiles")
+        .select("username, display_name")
+        .eq("id", currentUserId)
+        .maybeSingle();
+
+      if (ownProfileError) {
+        console.warn("[WorldTreeActivity] could not fetch own profile username:", ownProfileError);
+      } else if (ownProfile?.username || ownProfile?.display_name) {
+        accountUsername = ownProfile.username || ownProfile.display_name;
+      }
+    } catch (profileErr) {
+      console.warn("[WorldTreeActivity] profile lookup threw, falling back to senderName:", profileErr);
+    }
+
     // ── Resolve recipient identity ───────────────────────────────────────────
     // - selectedUserId / selectedUserName come from the username search and
     //   refer to a real TimeLock account → receiver_id + receiver_name.
@@ -774,7 +796,7 @@ function CreateCapsule() {
           // 📝 Activity feed — log only, no growth side-effects of its own.
           // sendMessage() above already succeeded, so the capsule was
           // genuinely sent before this fires.
-          logCapsuleSent(currentUserId, senderName.trim(), 150).catch((e) =>
+          logCapsuleSent(currentUserId, accountUsername, 150).catch((e) =>
             console.warn("[WorldTreeActivity] logCapsuleSent failed silently:", e)
           );
         }
@@ -801,7 +823,7 @@ function CreateCapsule() {
         );
         // 📝 Activity feed — fires only after the WhatsApp share action above
         // has already happened (waWindow was opened).
-        logCapsuleSent(currentUserId, senderName.trim(), 150).catch((e) =>
+        logCapsuleSent(currentUserId, accountUsername, 150).catch((e) =>
           console.warn("[WorldTreeActivity] logCapsuleSent (whatsapp) failed silently:", e)
         );
       }
@@ -846,7 +868,7 @@ function CreateCapsule() {
         );
         // 📝 Activity feed — fires only after the capsule was already saved
         // and the Instagram share flow has been initiated.
-        logCapsuleSent(currentUserId, senderName.trim(), 150).catch((e) =>
+        logCapsuleSent(currentUserId, accountUsername, 150).catch((e) =>
           console.warn("[WorldTreeActivity] logCapsuleSent (instagram) failed silently:", e)
         );
       }
