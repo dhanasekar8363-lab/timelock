@@ -104,25 +104,18 @@ export const getActiveStorm = async () => {
  * @returns {{ data: object|null, error: object|null }}
  */
 export const getLatestUnfinalizedStorm = async () => {
-  try {
-    const nowIso = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("memory_storms")
+    .select("*")
+    .eq("finalized", false)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-    const { data, error } = await supabase
-      .from("memory_storms")
-      .select("*")
-      .eq("active", true)
-      .eq("finalized", false)
-      .lte("start_time", nowIso)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+  console.log("LATEST UNFINALIZED STORM:", data);
+  console.log("LATEST UNFINALIZED ERROR:", error);
 
-    if (error) throw error;
-    return { data: data || null, error: null };
-  } catch (error) {
-    console.error("[getLatestUnfinalizedStorm]", error);
-    return { data: null, error };
-  }
+  return { data, error };
 };
 
 /**
@@ -232,31 +225,41 @@ export const finalizeStormGrowth = async () => {
     const finalGrowth = calculateStormGrowth(storm);
 
     // Get current tree
-    const { data: tree } = await supabase
+    const { data: tree, error: treeError } = await supabase
       .from("world_tree")
       .select("*")
-      .eq("id", 1)
       .single();
+
+    console.log("TREE:", tree);
+    console.log("TREE ERROR:", treeError);
 
     const newGrowth = tree.growth + finalGrowth;
 
     // Commit storm growth permanently to community total
-    await supabase
+    const { data: updateData, error: updateError } = await supabase
       .from("world_tree")
       .update({
         growth: newGrowth,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", 1);
+      .eq("id", tree.id)
+      .select();
+
+    console.log("UPDATE DATA:", updateData);
+    console.log("UPDATE ERROR:", updateError);
 
     // Mark storm as inactive and finalized so it's never picked up again
-    await supabase
+    const { data: stormUpdateData, error: stormUpdateError } = await supabase
       .from("memory_storms")
       .update({
         active: false,
         finalized: true,
       })
-      .eq("id", storm.id);
+      .eq("id", storm.id)
+      .select();
+
+    console.log("STORM UPDATE DATA:", stormUpdateData);
+    console.log("STORM UPDATE ERROR:", stormUpdateError);
 
     return {
       success: true,
