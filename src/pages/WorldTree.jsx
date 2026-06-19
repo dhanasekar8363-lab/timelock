@@ -27,7 +27,6 @@ import {
   getStormTimeLeft,
   finalizeStormGrowth,
 } from "../services/stormService";
-import worldTreeBadges from "../data/worldTreeBadges";
 import FloatingBadge from "../components/FloatingBadge";
 import "./WorldTree.css";
 
@@ -712,99 +711,6 @@ function FeedSection({ userId, onFed, treeGlowing }) {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-// ── Badge Claim Section ────────────────────────────────────────────
-function BadgeClaimSection({ userId, level, claimedLevels, globalBadgeClaims, onClaimed }) {
-  const eligibleBadges = worldTreeBadges.filter((b) => level >= b.level);
-  if (eligibleBadges.length === 0) return null;
-
-  return (
-    <div className="wt-badge-claim-section">
-      {eligibleBadges.map((badge) => {
-        const isClaimed          = claimedLevels.has(badge.level);
-        const globalClaim        = globalBadgeClaims.get(badge.level);
-        const isGloballyClaimed  = !!globalClaim;
-        const claimedBy          = globalClaim?.user_id ?? null;
-
-        return (
-          <BadgeClaimRow
-            key={badge.level}
-            badge={badge}
-            userId={userId}
-            isClaimed={isClaimed}
-            isGloballyClaimed={isGloballyClaimed}
-            claimedBy={claimedBy}
-            onClaimed={onClaimed}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-function BadgeClaimRow({ badge, userId, isClaimed, isGloballyClaimed, claimedBy, onClaimed }) {
-  const [claiming,  setClaiming]  = useState(false);
-  const [showToast, setShowToast] = useState(false);
-  const [error,     setError]     = useState(null);
-
-  // Already taken globally — show who got it, disable for everyone
-  const isTakenByOther = isGloballyClaimed && !isClaimed;
-  const isDisabled     = isClaimed || isTakenByOther || claiming || !userId;
-
-  const handleClaim = async () => {
-    if (isDisabled) return;
-    setError(null);
-    setClaiming(true);
-    const { error: claimError, alreadyClaimed } = await claimWorldTreeBadge(
-      userId, badge.level, badge.name, badge.key,
-    );
-    setClaiming(false);
-    if (claimError) { setError("Could not claim badge. Try again."); return; }
-    if (alreadyClaimed) {
-      setError("Someone else just claimed this badge!");
-      return;
-    }
-    onClaimed(badge.level);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 3000);
-  };
-
-  return (
-    <div className={`wt-badge-row ${isClaimed ? "wt-badge-row--claimed" : isTakenByOther ? "wt-badge-row--taken" : "wt-badge-row--available"}`}>
-      <div className={`wt-badge-toast ${showToast ? "wt-badge-toast--visible" : ""}`} aria-live="polite">
-        🏅 You're the First Discoverer of {badge.name}!
-      </div>
-      <div className="wt-badge-img-wrap">
-        {badge.image ? (
-          <img src={badge.image} alt={badge.name} className={`wt-badge-img ${isTakenByOther ? "wt-badge-img--taken" : ""}`} />
-        ) : (
-          <span className="wt-badge-emoji">🏅</span>
-        )}
-        {isClaimed      && <span className="wt-badge-check" aria-label="Claimed">✓</span>}
-        {isTakenByOther && <span className="wt-badge-taken-icon" aria-label="Claimed by another">🔒</span>}
-      </div>
-      <div className="wt-badge-info">
-        <p className="wt-badge-name">{badge.name}</p>
-        <p className="wt-badge-desc">{badge.description}</p>
-        {isClaimed      && <p className="wt-badge-rarity">✦ First Discoverer</p>}
-        {isTakenByOther && <p className="wt-badge-claimed-note">Claimed by another guardian</p>}
-        {error && <p className="wt-badge-error">{error}</p>}
-      </div>
-      <button
-        className={`wt-claim-btn ${isClaimed ? "wt-claim-btn--claimed" : isTakenByOther ? "wt-claim-btn--taken" : ""}`}
-        onClick={handleClaim}
-        disabled={isDisabled}
-        aria-label={isClaimed ? `${badge.name} claimed by you` : isTakenByOther ? `${badge.name} already taken` : `Claim ${badge.name}`}
-      >
-        {!userId         ? "🔒 Log in"         :
-         claiming        ? "Claiming…"          :
-         isClaimed       ? "✓ You claimed it"   :
-         isTakenByOther  ? "✗ Already taken"    :
-                           "🏅 Claim Badge"}
-      </button>
-    </div>
-  );
-}
-
 function WorldTree() {
   const navigate = useNavigate();
 
@@ -982,10 +888,6 @@ function WorldTree() {
     }
   }, []);
 
-  const handleBadgeClaimed = useCallback((badgeLevel) => {
-    setClaimedLevels((prev) => new Set([...prev, badgeLevel]));
-  }, []);
-
   // Called by FloatingBadge when user clicks the floating collectible
   const handleClaimBadge = useCallback(async (badge) => {
     const result = await claimWorldTreeBadge(
@@ -1129,29 +1031,7 @@ function WorldTree() {
           <FeedSection userId={userId} onFed={handleFed} treeGlowing={treeGlowing} />
         </FadeCard>
 
-
-        {/* 3 ── Badge Claim */}
-        {!dataLoading && (
-          <FadeCard delay={90}>
-            <div className="wt-card">
-              <p className="wt-card-eyebrow">🏅 Milestone Badges</p>
-              <BadgeClaimSection
-                userId={userId}
-                level={level}
-                claimedLevels={claimedLevels}
-                globalBadgeClaims={globalBadgeClaims}
-                onClaimed={handleBadgeClaimed}
-              />
-              {level < 5 && (
-                <p className="wt-badge-hint">
-                  🌱 Badges unlock when the tree reaches Level 5, 10, 15, 20, and 25.
-                </p>
-              )}
-            </div>
-          </FadeCard>
-        )}
-
-        {/* 4 ── Community Stats */}
+        {/* 3 ── Community Stats */}
         <FadeCard delay={120}>
           <div className="wt-card">
             <p className="wt-card-eyebrow">🌍 Community Stats</p>
