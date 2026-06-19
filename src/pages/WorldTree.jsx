@@ -18,6 +18,8 @@ import {
   getAllWorldTreeBadgeClaims,
   subscribeToWorldTreeBadges,
   subscribeToWorldTree,
+  getWorldTreeActivity,
+  subscribeToWorldTreeActivity,
   GROWTH_REWARDS,
   FEED_COOLDOWN_MS,
 } from "../services/supabase";
@@ -38,26 +40,6 @@ const MOCK_COMMUNITY = {
   totalGrowth:       128_450,
   treeAgeDays:       94,
 };
-
-// ── Live Activity Feed: placeholder/mock data ──────────────────────────────
-// TEMPORARY — replace with a real Supabase fetch + Realtime subscription
-// once the world_tree_activity table/channel is wired up. For now the
-// Live Activity button + modal are fully functional UI running on static
-// mock rows so design/UX can be reviewed independently of the backend.
-const MOCK_LIVE_UNREAD_COUNT = 7;
-
-const MOCK_LIVE_ACTIVITY = [
-  { id: "m1",  activity_type: "tree_fed",       message: "Aanya fed the World Tree",                 growth_amount: 25,   created_at: new Date(Date.now() - 2   * 60_000).toISOString() },
-  { id: "m2",  activity_type: "capsule_opened", message: "Marcus opened a memory capsule",            growth_amount: 40,   created_at: new Date(Date.now() - 9   * 60_000).toISOString() },
-  { id: "m3",  activity_type: "badge_claimed",  message: "Priya claimed the Seed Pioneer badge",      growth_amount: null, created_at: new Date(Date.now() - 18  * 60_000).toISOString() },
-  { id: "m4",  activity_type: "capsule_sent",   message: "Liam sent a new capsule",                   growth_amount: 15,   created_at: new Date(Date.now() - 26  * 60_000).toISOString() },
-  { id: "m5",  activity_type: "storm_growth",   message: "Memory Storm boosted the tree",             growth_amount: 120,  created_at: new Date(Date.now() - 41  * 60_000).toISOString() },
-  { id: "m6",  activity_type: "tree_fed",       message: "Sofia fed the World Tree",                  growth_amount: 25,   created_at: new Date(Date.now() - 55  * 60_000).toISOString() },
-  { id: "m7",  activity_type: "capsule_opened", message: "Noah opened a memory capsule",              growth_amount: 40,   created_at: new Date(Date.now() - 72  * 60_000).toISOString() },
-  { id: "m8",  activity_type: "capsule_sent",   message: "Elena sent a new capsule",                  growth_amount: 15,   created_at: new Date(Date.now() - 95  * 60_000).toISOString() },
-  { id: "m9",  activity_type: "tree_fed",       message: "Kenji fed the World Tree",                  growth_amount: 25,   created_at: new Date(Date.now() - 130 * 60_000).toISOString() },
-  { id: "m10", activity_type: "badge_claimed",  message: "Grace claimed the Nature Guardian badge",    growth_amount: null, created_at: new Date(Date.now() - 170 * 60_000).toISOString() },
-];
 
 // World Tree milestone badge progression — Level 5 / 10 / 15 / 20 / 25.
 // Used to drive the dynamic "Next Reward" card.
@@ -751,14 +733,8 @@ const ACTIVITY_ICONS = {
 };
 
 // ── Live Feed Modal ────────────────────────────────────────────────────────────
-// NOTE: Currently runs on MOCK_LIVE_ACTIVITY placeholder data. No Supabase
-// fetch or Realtime subscription is wired up yet — that's a follow-up once
-// the world_tree_activity table/channel exists. Swap the mock useState
-// initializer below for a real fetch + subscribe pair when ready.
-function LiveFeedModal({ onClose }) {
-  const [activities, setActivities] = useState(() => MOCK_LIVE_ACTIVITY);
-  const [loading]    = useState(false);
-  const [newIds]     = useState(() => new Set());
+function LiveFeedModal({ onClose, activities }) {
+  const [newIds] = useState(() => new Set());
 
   // Today's growth = sum of growth_amount for activities created today
   const todayGrowth = (() => {
@@ -787,11 +763,7 @@ function LiveFeedModal({ onClose }) {
         </div>
 
         {/* Activity list */}
-        {loading ? (
-          <p className="wt-loading-hint" style={{ textAlign: "center", padding: "24px 0" }}>
-            Loading feed…
-          </p>
-        ) : activities.length === 0 ? (
+        {activities.length === 0 ? (
           <p className="wt-loading-hint" style={{ textAlign: "center", padding: "24px 0" }}>
             No activity yet — be the first! 🌱
           </p>
@@ -858,6 +830,7 @@ function WorldTree() {
   const [showRewards,      setShowRewards]      = useState(false);
   const [showLiveFeed,     setShowLiveFeed]     = useState(false);
   const [unreadCount,      setUnreadCount]      = useState(0);
+  const [activities,       setActivities]       = useState([]);
   const lastReadAtRef = useRef(() => {
     try { return localStorage.getItem("wt_last_read_activity") || new Date(0).toISOString(); }
     catch { return new Date(0).toISOString(); }
@@ -1004,12 +977,24 @@ function WorldTree() {
     };
   }, []);
 
-  // ── Live Activity Feed: unread counter ─────────────────────────────────────
-  // TEMPORARY — seeded from MOCK_LIVE_UNREAD_COUNT placeholder data, no
-  // Supabase subscription yet. Swap for a real-time "since last read" count
-  // once the world_tree_activity table/channel is wired up.
+  // ── Live Activity Feed: load recent activity on mount ─────────────────────
   useEffect(() => {
-    setUnreadCount(MOCK_LIVE_UNREAD_COUNT);
+    getWorldTreeActivity(50).then(({ data }) => {
+      if (data) {
+        setActivities(data);
+      }
+    });
+  }, []);
+
+  // ── Live Activity Feed: realtime updates ───────────────────────────────────
+  useEffect(() => {
+    const unsubscribe = subscribeToWorldTreeActivity((activity) => {
+      setActivities(prev => [activity, ...prev]);
+
+      setUnreadCount(prev => prev + 1);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const handleOpenLiveFeed = () => {
@@ -1381,7 +1366,7 @@ function WorldTree() {
 
       {/* ── Live Activity Feed Modal ── */}
       {showLiveFeed && (
-        <LiveFeedModal onClose={() => setShowLiveFeed(false)} />
+        <LiveFeedModal onClose={() => setShowLiveFeed(false)} activities={activities} />
       )}
 
       {/* ── All Contributors Modal ── */}

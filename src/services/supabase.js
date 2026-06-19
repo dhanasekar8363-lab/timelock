@@ -1069,6 +1069,52 @@ export const awardCapsuleSent = (userId, capsuleId) =>
 export const awardCapsuleOpened = (userId, capsuleId) =>
   awardTreeGrowth(userId, 'open_capsule', GROWTH_REWARDS.OPEN_CAPSULE, capsuleId)
 
+// ==================== WORLD TREE ACTIVITY ====================
+
+export const getWorldTreeActivity = async (limit = 50) => {
+  try {
+    const { data, error } = await supabase
+      .from('world_tree_activity')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit)
+
+    if (error) throw error
+
+    return {
+      data: data || [],
+      error: null,
+    }
+  } catch (error) {
+    console.error('[getWorldTreeActivity]', error)
+    return {
+      data: [],
+      error,
+    }
+  }
+}
+
+export const subscribeToWorldTreeActivity = (onActivity) => {
+  const channel = supabase
+    .channel('world-tree-activity')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'world_tree_activity',
+      },
+      (payload) => {
+        if (payload.new) {
+          onActivity(payload.new)
+        }
+      }
+    )
+    .subscribe()
+
+  return () => supabase.removeChannel(channel)
+}
+
 // ==================== WORLD TREE BADGE FUNCTIONS ====================
 //
 // GLOBAL FIRST-CLAIM MODEL: each badge_level can be won by exactly ONE
