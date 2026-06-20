@@ -379,13 +379,29 @@ function CreateCapsule() {
 
   /* ── helpers ── */
   const toggleType = (id) => {
-    setSelectedTypes((prev) => {
-      const isRemoving = prev.includes(id);
-      // FIX 4: clear message text when the "text" content type is deselected so
-      // a stale message is never silently saved with a non-text capsule.
-      if (id === "text" && isRemoving) setMessage("");
-      return isRemoving ? prev.filter((t) => t !== id) : [...prev, id];
-    });
+    const isRemoving = selectedTypes.includes(id);
+
+    // FIX 4: clear message text when the "text" content type is deselected so
+    // a stale message is never silently saved with a non-text capsule.
+    if (id === "text" && isRemoving) setMessage("");
+
+    // FIX (memory leak): when deselecting a media type that has pending uploads,
+    // revoke every object URL it created so the browser can free the backing blob
+    // memory immediately. Without this, those URLs survive until the entire
+    // component unmounts — leaking memory proportional to file sizes for the
+    // whole session.
+    if (isRemoving && id !== "text") {
+      setUploads((prev) => {
+        (prev[id] || []).forEach((u) => {
+          if (u.preview) URL.revokeObjectURL(u.preview);
+        });
+        return { ...prev, [id]: [] };
+      });
+    }
+
+    setSelectedTypes((prev) =>
+      isRemoving ? prev.filter((t) => t !== id) : [...prev, id]
+    );
   };
 
   const addUpload = (typeId, item) => {
