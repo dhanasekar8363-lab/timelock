@@ -94,10 +94,6 @@ function Home() {
       }
 
       const capsule = capsules.find((c) => c.id === capsuleId);
-      console.log("👤 user.id          :", user.id);
-      console.log("🫙 capsule.id       :", capsule?.id);
-      console.log("🫙 capsule.sender_id:", capsule?.sender_id);
-      console.log("🫙 capsule.receiver_id:", capsule?.receiver_id);
 
       const { data, error } = await supabase
         .from("capsules")

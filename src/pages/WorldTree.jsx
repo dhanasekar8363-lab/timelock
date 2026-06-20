@@ -615,6 +615,33 @@ function FeedSection({ userId, onFed, treeGlowing }) {
     return () => clearInterval(id);
   }, [nextFeedAt]);
 
+  // Tracks whether this component is still mounted, plus every pending
+  // setTimeout from handleFeed, so they can all be cancelled on unmount.
+  // This prevents "setState on an unmounted component" leaks if the user
+  // navigates away within ~2.4s of feeding the tree.
+  const isMountedRef = useRef(true);
+  const pendingTimeoutsRef = useRef(new Set());
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      pendingTimeoutsRef.current.forEach(clearTimeout);
+      pendingTimeoutsRef.current.clear();
+    };
+  }, []);
+
+  // Wraps setTimeout so the id is tracked and auto-removed once it fires,
+  // and the callback is skipped entirely if we've already unmounted.
+  const safeSetTimeout = useCallback((callback, delay) => {
+    const id = setTimeout(() => {
+      pendingTimeoutsRef.current.delete(id);
+      if (isMountedRef.current) callback();
+    }, delay);
+    pendingTimeoutsRef.current.add(id);
+    return id;
+  }, []);
+
   const canFeed = !!userId && !checking && !loading && msRemaining <= 0;
   const remainingLabel = formatRemaining(msRemaining);
 
@@ -624,10 +651,11 @@ function FeedSection({ userId, onFed, treeGlowing }) {
 
     setError(null);
     setRipple(true);
-    setTimeout(() => setRipple(false), 700);
+    safeSetTimeout(() => setRipple(false), 700);
 
     setLoading(true);
     const { data, error: feedError } = await feedWorldTree(userId);
+    if (!isMountedRef.current) return;
     setLoading(false);
 
     if (feedError) { setError("Could not feed the tree. Try again."); return; }
@@ -647,8 +675,8 @@ function FeedSection({ userId, onFed, treeGlowing }) {
     setNextFeedAt(new Date(data.nextFeedAt));
     setMsRemaining(Math.max(0, (data.secondsRemaining || 0) * 1000) || FEED_COOLDOWN_MS);
     onFed(data.growth, GROWTH_REWARDS.FEED_TREE);
-    setTimeout(() => setFed(false), 2200);
-    setTimeout(() => setShowToast(false), 2400);
+    safeSetTimeout(() => setFed(false), 2200);
+    safeSetTimeout(() => setShowToast(false), 2400);
   };
 
   const onCooldown = msRemaining > 0;
@@ -850,6 +878,30 @@ function WorldTree() {
   // by claimWorldTreeBadge's own result.claimed flag.
   const loggedBadgeClaimsRef = useRef(new Set());
 
+  // Tracks mount status + pending setTimeout ids created by handleFed's
+  // glow/growth-animation timers, so they can be cancelled if the user
+  // navigates away from WorldTree before they fire.
+  const isMountedRef = useRef(true);
+  const pendingTimeoutsRef = useRef(new Set());
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      pendingTimeoutsRef.current.forEach(clearTimeout);
+      pendingTimeoutsRef.current.clear();
+    };
+  }, []);
+
+  const safeSetTimeout = useCallback((callback, delay) => {
+    const id = setTimeout(() => {
+      pendingTimeoutsRef.current.delete(id);
+      if (isMountedRef.current) callback();
+    }, delay);
+    pendingTimeoutsRef.current.add(id);
+    return id;
+  }, []);
+
   // ── Memory Storm state (powered by stormService) ──────────────────────────
   // activeStorm  – the current storm row from Supabase, or null
   // stormGrowth  – bonus growth accumulated so far this storm (whole number)
@@ -862,8 +914,10 @@ function WorldTree() {
   // This is kept completely separate from `loadData()` so the existing
   // reward / community-growth logic is never touched.
   useEffect(() => {
+    let cancelled = false;
     const fetchStorm = async () => {
       const { data } = await getActiveStorm();
+      if (cancelled) return;
       setActiveStorm(data ?? null);
       if (data) {
         setStormGrowth(calculateStormGrowth(data));
@@ -875,7 +929,7 @@ function WorldTree() {
     };
     fetchStorm();
     const pollId = setInterval(fetchStorm, 15_000);
-    return () => clearInterval(pollId);
+    return () => { cancelled = true; clearInterval(pollId); };
   }, []);
 
   // Tick stormGrowth and stormTimeLeft every second while a storm is active.
@@ -1015,17 +1069,18 @@ function WorldTree() {
     // Trigger animations
     setTreeGlowing(true);
     setGrowthAnimating(true);
-    setTimeout(() => setTreeGlowing(false), 2500);
-    setTimeout(() => setGrowthAnimating(false), 1000);
+    safeSetTimeout(() => setTreeGlowing(false), 2500);
+    safeSetTimeout(() => setGrowthAnimating(false), 1000);
 
     setGrowth(newGrowth);
     setMyContrib(prev => prev + (amountAdded ?? GROWTH_REWARDS.FEED_TREE));
     const { data } = await getTopContributors(50);
+    if (!isMountedRef.current) return;
     if (data) {
       setContributors(data.slice(0, 10));
       setTotalContributors(data.length);
     }
-  }, []);
+  }, [safeSetTimeout]);
 
   // Moved above handleClaimBadge (was originally declared after it) so the
   // badge-claim activity logging below can safely reference the current

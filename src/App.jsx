@@ -12,6 +12,8 @@ import CreateCapsule   from "./pages/CreateCapsule";
 import LockedCapsule   from "./pages/LockedCapsule";
 import UnlockedCapsule from "./pages/UnlockedCapsule";
 import Login           from "./pages/Login";
+import Privacy         from "./pages/Privacy";
+import Terms           from "./pages/Terms";
 import Profile         from "./pages/Profile";
 import EditProfile     from "./pages/EditProfile";
 import CapsuleDetail   from "./pages/CapsuleDetail";
@@ -28,7 +30,7 @@ import PetPage         from "./pages/PetPage";
 import ProtectedRoute  from "./components/ProtectedRoute";
 
 // Pages that should NOT show the bottom nav
-const NO_NAV_ROUTES = ["/login"];
+const NO_NAV_ROUTES = ["/login", "/privacy", "/terms"];
 
 function Layout() {
   const location = useLocation();
@@ -48,6 +50,8 @@ const routes = [
     children: [
       // ── Public ──────────────────────────────────────────────
       { path: "/login",          element: <Login /> },
+      { path: "/privacy",        element: <Privacy /> },
+      { path: "/terms",          element: <Terms /> },
       { path: "/capsule/:slug",  element: <CapsuleViewer /> },  // shareable links stay public
 
       // ── Protected ────────────────────────────────────────────

@@ -27,36 +27,52 @@ export function AuthProvider({ children }) {
     // 3. On Android, intercept the deep link that Google sends back after OAuth.
     //    The URL looks like: com.dhana.timelock://login-callback?code=...
     //    Supabase uses the PKCE flow, so we exchange the auth code for a session.
-    let appUrlListener = null;
-    if (Capacitor.isNativePlatform()) {
-      App.addListener('appUrlOpen', async ({ url }) => {
-        console.log('🔗 Deep link received:', url);
+    //
+    //    addListener() returns a PROMISE, not a handle. If the effect's cleanup
+    //    runs before that promise resolves (fast unmount, StrictMode double
+    //    invoke, etc.), a synchronous `handle?.remove()` in cleanup is too early
+    //    and silently no-ops, leaking the native listener. We guard against that
+    //    by tracking a `cancelled` flag and always removing the handle the
+    //    moment it actually resolves, even if that happens after cleanup starts.
+    let cancelled = false;
+    let listenerPromise = null;
 
+    if (Capacitor.isNativePlatform()) {
+      listenerPromise = App.addListener('appUrlOpen', async ({ url }) => {
         try {
           const parsedUrl = new URL(url);
           const code = parsedUrl.searchParams.get('code');
 
           if (code) {
-            console.log('🔑 Exchanging code for session...');
-
             const { data, error } =
               await supabase.auth.exchangeCodeForSession(code);
 
             if (error) {
               console.error('exchangeCodeForSession error:', error);
-            } else {
-              console.log('✅ Session created', data);
             }
           }
         } catch (err) {
           console.error('Deep link handling error:', err);
         }
-      }).then(handle => { appUrlListener = handle; });
+      });
+
+      listenerPromise.then(handle => {
+        if (cancelled) {
+          // Effect was already cleaned up before registration finished —
+          // remove the handle now instead of leaking it.
+          handle.remove();
+        }
+      }).catch(err => {
+        console.error('Failed to register appUrlOpen listener:', err);
+      });
     }
 
     return () => {
       subscription?.unsubscribe();
-      appUrlListener?.remove();
+      cancelled = true;
+      if (listenerPromise) {
+        listenerPromise.then(handle => handle.remove()).catch(() => {});
+      }
     };
   }, []);
 

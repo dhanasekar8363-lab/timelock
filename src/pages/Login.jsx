@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Capacitor } from '@capacitor/core';
@@ -116,7 +116,11 @@ export default function Login() {
           )}
         </button>
 
-        <p className="terms">By continuing, you agree to our Terms of Service.</p>
+        <p className="terms">
+          By continuing, you agree to our{' '}
+          <Link to="/terms">Terms of Service</Link> and{' '}
+          <Link to="/privacy">Privacy Policy</Link>.
+        </p>
       </div>
     </div>
   );

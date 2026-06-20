@@ -16,16 +16,6 @@ export const getPetProfile = async (userId) => {
       .eq('user_id', userId)
       .single()
 
-    console.log("[DEBUG getPetProfile]", {
-      userId,
-      data,
-      error,
-      code: error?.code,
-      message: error?.message,
-      details: error?.details,
-      hint: error?.hint,
-    });
-
     // PGRST116 = no rows found; treat as null data, not an error
     if (error && error.code !== 'PGRST116') throw error
 
@@ -54,16 +44,6 @@ export const createPetProfile = async (userId, profileData = {}) => {
       }])
       .select()
       .single()
-
-    console.log("[DEBUG createPetProfile]", {
-      userId,
-      data,
-      error,
-      code: error?.code,
-      message: error?.message,
-      details: error?.details,
-      hint: error?.hint,
-    });
 
     if (error) throw error
 
