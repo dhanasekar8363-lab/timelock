@@ -6,7 +6,6 @@ import App from "./App.jsx";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 
-import { AuthProvider } from "./contexts/AuthContext";
 import ErrorBoundary    from "./ErrorBoundary.jsx";
 
 // Android hardware back button handling.
@@ -33,9 +32,7 @@ if (Capacitor.getPlatform() === "android") {
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <ErrorBoundary>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
+      <App />
     </ErrorBoundary>
   </StrictMode>
 );

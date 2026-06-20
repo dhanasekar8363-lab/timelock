@@ -46,13 +46,104 @@ const ACCEPT_MAP = {
   photo: "image/*",
   video: "video/*",
   audio: "audio/*",
-  file:  "*/*",
+  file:  "application/pdf",
 };
+
+/* ── SECURITY: upload validation constants ──
+   Enforced client-side as a first line of defense / UX guard. The
+   "accept" attribute on <input type="file"> is advisory only — it does
+   NOT block drag-and-drop or a user manually overriding the file picker
+   filter — so every file must still be checked here before it is queued
+   for upload. Server-side (Supabase Storage policy / bucket MIME
+   allow-list) validation must also be enforced and is the authoritative
+   check; this is defense-in-depth, not a replacement for it. ── */
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB
+
+// Explicit allow-list of MIME types. Wildcards like "image/*" are NOT used
+// here because that would also admit types we don't want to host blindly
+// (e.g. "image/svg+xml", which can carry embedded <script> and is a known
+// stored-XSS vector when served back via a public URL).
+const ALLOWED_MIME_TYPES = new Set([
+  // Images
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+  // Video
+  "video/mp4",
+  "video/quicktime",   // .mov
+  "video/webm",
+  "video/x-matroska",  // .mkv
+  // Audio
+  "audio/mpeg",        // .mp3
+  "audio/mp4",         // .m4a
+  "audio/wav",
+  "audio/x-wav",
+  "audio/ogg",
+  "audio/webm",
+  // Documents
+  "application/pdf",
+]);
+
+function formatBytes(bytes) {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${bytes} B`;
+}
+
+/* ── SECURITY: validate a single File before it is ever added to upload
+   state or sent over the network.
+   Returns { valid: true } or { valid: false, reason: string } with a
+   clear, user-facing error message. Checks both:
+     1. Size — must not exceed MAX_UPLOAD_BYTES.
+     2. MIME type — must be in the explicit ALLOWED_MIME_TYPES allow-list
+        (images, video, audio, PDF only). file.type is read from the
+        browser/OS file metadata; it can be spoofed by a determined
+        attacker, which is exactly why the server-side check remains the
+        authoritative gate — this only protects the happy path and gives
+        fast, clear feedback. ── */
+function validateFile(file) {
+  if (!file || !(file instanceof File)) {
+    return { valid: false, reason: "Invalid file." };
+  }
+
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return {
+      valid: false,
+      reason: `"${file.name}" is ${formatBytes(file.size)}, which exceeds the 50 MB limit.`,
+    };
+  }
+
+  if (file.size === 0) {
+    return { valid: false, reason: `"${file.name}" is empty.` };
+  }
+
+  if (!ALLOWED_MIME_TYPES.has(file.type)) {
+    return {
+      valid: false,
+      reason: `"${file.name}" has an unsupported file type${file.type ? ` (${file.type})` : ""}. Only images, videos, audio, and PDF files are allowed.`,
+    };
+  }
+
+  return { valid: true };
+}
 
 /* ── Upload a single File to Supabase Storage, return public URL ── */
 async function uploadFile(file) {
   if (!file || !(file instanceof File)) {
     throw new Error(`Invalid file object: ${JSON.stringify(file)}`);
+  }
+
+  // SECURITY: re-validate here too, not just at the dropzone. This is the
+  // function that actually talks to Supabase Storage, so it must not trust
+  // that every caller went through MediaUploadZone's UI validation first —
+  // a future caller (or a restored draft, a programmatic call, etc.) could
+  // otherwise bypass the size/type checks entirely.
+  const validation = validateFile(file);
+  if (!validation.valid) {
+    throw new Error(validation.reason);
   }
 
   const ext = file.name.split(".").pop();
@@ -104,20 +195,33 @@ async function generateUniqueSlug(title, supabaseClient) {
 }
 
 /* ── MediaUploadZone ── */
-function MediaUploadZone({ typeId, uploads, onAdd, onRemove }) {
+function MediaUploadZone({ typeId, uploads, onAdd, onRemove, onError }) {
   const inputRef = useRef(null);
   const accept   = ACCEPT_MAP[typeId] || "*/*";
+
+  // SECURITY: shared per-file gate used by both the file-picker and
+  // drag-and-drop entry points, so a file can never reach upload state
+  // (and therefore never reach uploadFile()/Supabase) without first
+  // passing the size and MIME-type allow-list checks. Invalid files are
+  // reported via onError with a clear message and are NOT added to
+  // uploads — the existing add/preview/remove flow is otherwise untouched.
+  const acceptFile = (f) => {
+    const result = validateFile(f);
+    if (!result.valid) {
+      onError?.(result.reason);
+      return;
+    }
+    const preview =
+      f.type.startsWith("image/") || f.type.startsWith("video/")
+        ? URL.createObjectURL(f)
+        : null;
+    onAdd({ file: f, preview, name: f.name, mimeType: f.type });
+  };
 
   const handleFiles = (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
-    files.forEach((f) => {
-      const preview =
-        f.type.startsWith("image/") || f.type.startsWith("video/")
-          ? URL.createObjectURL(f)
-          : null;
-      onAdd({ file: f, preview, name: f.name, mimeType: f.type });
-    });
+    files.forEach(acceptFile);
     // reset so same file can be re-selected without triggering onChange again
     setTimeout(() => { e.target.value = ""; }, 0);
   };
@@ -125,11 +229,7 @@ function MediaUploadZone({ typeId, uploads, onAdd, onRemove }) {
   const handleDrop = (e) => {
     e.preventDefault();
     const files = Array.from(e.dataTransfer.files || []);
-    files.forEach((f) => {
-      const preview = f.type.startsWith("image/") || f.type.startsWith("video/")
-        ? URL.createObjectURL(f) : null;
-      onAdd({ file: f, preview, name: f.name, mimeType: f.type });
-    });
+    files.forEach(acceptFile);
   };
 
   const isPhoto = typeId === "photo";
@@ -155,10 +255,10 @@ function MediaUploadZone({ typeId, uploads, onAdd, onRemove }) {
           Tap to add {typeId}{uploads.length > 0 ? " more" : ""}
         </p>
         <p className="cc-dropzone-sub">
-          {isPhoto ? "JPG, PNG, GIF, WebP"
-            : isVideo ? "MP4, MOV, WebM"
-            : isAudio ? "MP3, M4A, WAV, OGG"
-            : "Any file type"}
+          {isPhoto ? "JPG, PNG, GIF, WebP — up to 50 MB"
+            : isVideo ? "MP4, MOV, WebM, MKV — up to 50 MB"
+            : isAudio ? "MP3, M4A, WAV, OGG — up to 50 MB"
+            : "PDF — up to 50 MB"}
         </p>
         <input
           ref={inputRef}
@@ -297,6 +397,12 @@ function CreateCapsule() {
   /* media uploads: { photo: [], video: [], audio: [], file: [] } */
   const [uploads, setUploads] = useState({ photo: [], video: [], audio: [], file: [] });
 
+  // SECURITY: surfaces the validateFile() rejection message (size/type) from
+  // MediaUploadZone immediately, at the point of selection — separate from
+  // the submit-time `error` state so a rejected file doesn't get lost or
+  // confused with a later, unrelated save error.
+  const [uploadError, setUploadError] = useState("");
+
   /* ── pre-fill recipient from URL params (sent from Messages chat) ──
      FIX 7: searchParams was missing from the dependency array, so if the URL
      changed while the page was mounted the recipient field would not update. ── */
@@ -401,6 +507,7 @@ function CreateCapsule() {
   };
 
   const addUpload = (typeId, item) => {
+    setUploadError("");
     setUploads((prev) => ({ ...prev, [typeId]: [...prev[typeId], item] }));
   };
 
@@ -991,9 +1098,19 @@ function CreateCapsule() {
                   uploads={uploads[typeId]}
                   onAdd={(item) => addUpload(typeId, item)}
                   onRemove={(idx) => removeUpload(typeId, idx)}
+                  onError={(msg) => setUploadError(msg)}
                 />
               </div>
             ) : null
+          )}
+
+          {/* SECURITY: clear, immediate feedback when a file is rejected for
+              being too large or an unsupported type — shown right where the
+              file was dropped/selected, not deferred to submit time. */}
+          {uploadError && (
+            <p className="cc-error" style={{ marginTop: 4, marginBottom: 8 }}>
+              ⚠️ {uploadError}
+            </p>
           )}
 
           <button
