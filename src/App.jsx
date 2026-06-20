@@ -19,11 +19,13 @@ import CapsuleViewer   from "./pages/CapsuleViewer";
 import Messages        from "./pages/Messages";
 import Search          from "./pages/Search";
 import Notifications   from "./pages/Notifications";
-import WorldTree       from "./pages/WorldTree";        // ← NEW
+import WorldTree       from "./pages/WorldTree";
 import BottomNav       from "./components/BottomNav";
 import PetCompanion    from "./components/PetCompanion";
 import { PetProvider } from "./contexts/PetContext";
+import { AuthProvider } from "./contexts/AuthContext";
 import PetPage         from "./pages/PetPage";
+import ProtectedRoute  from "./components/ProtectedRoute";
 
 // Pages that should NOT show the bottom nav
 const NO_NAV_ROUTES = ["/login"];
@@ -44,21 +46,29 @@ const routes = [
   {
     element: <Layout />,
     children: [
-      { path: "/",                  element: <Home /> },
-      { path: "/create",            element: <CreateCapsule /> },
-      { path: "/search",            element: <Search /> },
-      { path: "/messages",          element: <Messages /> },
-      { path: "/notifications",     element: <Notifications /> },
-      { path: "/locked",            element: <LockedCapsule /> },
-      { path: "/unlocked",          element: <UnlockedCapsule /> },
-      { path: "/login",             element: <Login /> },
-      { path: "/profile",           element: <Profile /> },
-      { path: "/profile/:userId",   element: <Profile /> },
-      { path: "/profile/edit",      element: <EditProfile /> },
-      { path: "/capsule/id/:id",    element: <CapsuleDetail /> },
-      { path: "/capsule/:slug",     element: <CapsuleViewer /> },
-      { path: "/pet",               element: <PetPage /> },
-      { path: "/world-tree",        element: <WorldTree /> },  // ← NEW
+      // ── Public ──────────────────────────────────────────────
+      { path: "/login",          element: <Login /> },
+      { path: "/capsule/:slug",  element: <CapsuleViewer /> },  // shareable links stay public
+
+      // ── Protected ────────────────────────────────────────────
+      {
+        element: <ProtectedRoute />,
+        children: [
+          { path: "/",                 element: <Home /> },
+          { path: "/create",           element: <CreateCapsule /> },
+          { path: "/search",           element: <Search /> },
+          { path: "/messages",         element: <Messages /> },
+          { path: "/notifications",    element: <Notifications /> },
+          { path: "/locked",           element: <LockedCapsule /> },
+          { path: "/unlocked",         element: <UnlockedCapsule /> },
+          { path: "/profile",          element: <Profile /> },
+          { path: "/profile/edit",     element: <EditProfile /> },
+          { path: "/profile/:userId",  element: <Profile /> },
+          { path: "/capsule/id/:id",   element: <CapsuleDetail /> },
+          { path: "/pet",              element: <PetPage /> },
+          { path: "/world-tree",       element: <WorldTree /> },
+        ],
+      },
     ],
   },
 ];
@@ -79,8 +89,10 @@ const router = isNative
 
 export default function App() {
   return (
-    <PetProvider>
-      <RouterProvider router={router} />
-    </PetProvider>
+    <AuthProvider>
+      <PetProvider>
+        <RouterProvider router={router} />
+      </PetProvider>
+    </AuthProvider>
   );
 }

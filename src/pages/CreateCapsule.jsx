@@ -6,7 +6,6 @@ import {
   createNotification,
   isEmail,
   searchProfiles,
-  addTreeGrowth,
   awardCapsuleCreated,
   awardCapsuleSent,
 } from "../services/supabase";
@@ -725,21 +724,14 @@ function CreateCapsule() {
     setSavedCapsuleSlug(savedSlug);
 
     // 🌳 World Tree — +100 growth for creating a capsule.
-    // addTreeGrowth is the primary path (direct insert + world_tree update).
-    // awardCapsuleCreated (RPC-based, dedup-guarded) is the belt-and-suspenders
-    // fallback. Both are non-blocking fire-and-forget so capsule creation never
-    // stalls or fails because of a World Tree write.
-    if (currentUserId) {
-      // Primary: direct contribution row + global growth counter
-      addTreeGrowth(currentUserId, 100, 'create_capsule').catch((e) =>
-        console.warn("[WorldTree] addTreeGrowth(create_capsule) failed silently:", e)
+    // awardCapsuleCreated is dedup-guarded via reference_id (capsule UUID) so the
+    // same capsule can never be awarded twice. addTreeGrowth is NOT called here
+    // because it has no dedup guard and would write a second contribution row for
+    // the exact same event, doubling the growth credit.
+    if (currentUserId && savedCapsuleId) {
+      awardCapsuleCreated(currentUserId, savedCapsuleId).catch((e) =>
+        console.warn("[WorldTree] awardCapsuleCreated failed silently:", e)
       );
-      // Dedup-guarded RPC fallback (uses reference_id to prevent double-award)
-      if (savedCapsuleId) {
-        awardCapsuleCreated(currentUserId, savedCapsuleId).catch((e) =>
-          console.warn("[WorldTree] awardCapsuleCreated failed silently:", e)
-        );
-      }
     }
 
     // Fix 7: remove the draft now that it has been successfully submitted.

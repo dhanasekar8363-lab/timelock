@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useAuth } from "../contexts/AuthContext";
 import treeImg from "../assets/worldTree/tree.png";
 import worldTreeBg from "../assets/worldTree/world-tree-bg.jpg";
 import seedPioneerBadge from "../assets/badges/seed-pioneer.png";
@@ -819,7 +820,8 @@ function LiveActivityButton({ unreadCount, onClick }) {
 function WorldTree() {
   const navigate = useNavigate();
 
-  const [userId,        setUserId]        = useState(null);
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const [growth,        setGrowth]        = useState(0);
   const [treeCreatedAt, setTreeCreatedAt] = useState(null);
   const [totalContributors, setTotalContributors] = useState(0);
@@ -914,16 +916,6 @@ function WorldTree() {
     : allBadgesUnlocked
       ? 100
       : Math.max(0, Math.min(100, Math.round((level / nextBadge.level) * 100)));
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUserId(session?.user?.id ?? null);
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUserId(session?.user?.id ?? null);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
 
   const loadData = useCallback(async () => {
     setDataLoading(true);
