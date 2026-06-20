@@ -13,6 +13,7 @@ import { logCapsuleSent } from "../services/worldTreeActivity";
 import { useAuth } from "../contexts/AuthContext";
 import { usePet, getLevel, getNextLevelXP } from "../contexts/PetContext";
 import { playSound } from "../utils/sounds";
+import { logger } from "../utils/logger";
 import "./CreateCapsule.css";
 import createBg from "../assets/backgrounds/create-bg.jpg";
 import coverLove       from "../covers/love.png";
@@ -57,14 +58,9 @@ async function uploadFile(file) {
   const ext = file.name.split(".").pop();
   const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
-  console.log("START UPLOAD", file.name, file.size, file.type);
-
-  const { data: uploadData, error } = await supabase.storage
+  const { error } = await supabase.storage
     .from("capsule-media")
     .upload(path, file);
-
-  console.log("UPLOAD RESULT", uploadData);
-  console.log("UPLOAD ERROR", error);
 
   if (error) throw error;
 
@@ -583,7 +579,6 @@ function CreateCapsule() {
       return;
     }
 
-    console.log("HANDLE SUBMIT START");
     setError("");
     setSaving(true);
 
@@ -596,7 +591,6 @@ function CreateCapsule() {
     const uploadedPaths = [];
 
     if (allFiles.length > 0) {
-      console.log("BEFORE MEDIA UPLOAD");
       setUploadProgress(`Uploading media (0 / ${allFiles.length})…`);
       for (let i = 0; i < allFiles.length; i++) {
         try {
@@ -609,9 +603,8 @@ function CreateCapsule() {
           if (uploadedPaths.length > 0) {
             try {
               await supabase.storage.from("capsule-media").remove(uploadedPaths);
-              console.log("Cleaned up orphaned uploads:", uploadedPaths);
             } catch (cleanupErr) {
-              console.error("Orphan cleanup failed:", cleanupErr);
+              logger.error("Orphan cleanup failed:", cleanupErr);
             }
           }
           setError(`Upload failed: ${err.message}`);
@@ -620,8 +613,6 @@ function CreateCapsule() {
           return;
         }
       }
-      console.log("AFTER MEDIA UPLOAD");
-      console.log(uploadedMedia);
     }
 
     setUploadProgress("Saving capsule…");
@@ -639,7 +630,6 @@ function CreateCapsule() {
       return;
     }
     const currentUserId = user.id;
-    console.log("🔐 Authenticated user.id for new capsule:", currentUserId);
 
     // 🌳 World Tree — resolve the LOGGED-IN account's own username for the
     // activity feed. This is intentionally separate from `senderName`
@@ -655,12 +645,12 @@ function CreateCapsule() {
         .maybeSingle();
 
       if (ownProfileError) {
-        console.warn("[WorldTreeActivity] could not fetch own profile username:", ownProfileError);
+        logger.warn("[WorldTreeActivity] could not fetch own profile username:", ownProfileError);
       } else if (ownProfile?.username || ownProfile?.display_name) {
         accountUsername = ownProfile.username || ownProfile.display_name;
       }
     } catch (profileErr) {
-      console.warn("[WorldTreeActivity] profile lookup threw, falling back to senderName:", profileErr);
+      logger.warn("[WorldTreeActivity] profile lookup threw, falling back to senderName:", profileErr);
     }
 
     // ── Resolve recipient identity ───────────────────────────────────────────
@@ -716,21 +706,19 @@ function CreateCapsule() {
       slug,
     };
 
-    console.log("receiver_email =", recipientEmail);
-    console.log("INSERTING", payload);
-
     const { data, error: err } = await supabase
       .from("capsules")
       .insert([payload])
       .select();
 
-    console.log("INSERT DATA", data);
-    console.log("INSERT ERROR", err);
-
     setSaving(false);
     setUploadProgress("");
 
-    if (err) { setError(err.message); return; }
+    if (err) {
+      logger.error("[CreateCapsule] Failed to insert capsule:", err);
+      setError(err.message);
+      return;
+    }
 
     // Fix 3: mark this capsule as saved so any subsequent button press on this
     // page redirects instead of inserting a duplicate.
@@ -746,7 +734,7 @@ function CreateCapsule() {
     // the exact same event, doubling the growth credit.
     if (currentUserId && savedCapsuleId) {
       awardCapsuleCreated(currentUserId, savedCapsuleId).catch((e) =>
-        console.warn("[WorldTree] awardCapsuleCreated failed silently:", e)
+        logger.warn("[WorldTree] awardCapsuleCreated failed silently:", e)
       );
     }
 
@@ -767,7 +755,7 @@ function CreateCapsule() {
         JSON.stringify({ type: "capsule_created", rewardXP, timestamp: Date.now() }),
       );
     } catch {
-      console.warn("[CreateCapsule] Could not persist Lumi reward event.");
+      logger.warn("[CreateCapsule] Could not persist Lumi reward event.");
     }
 
     // 🐾 Lumi jumps and shoots confetti
@@ -799,13 +787,13 @@ function CreateCapsule() {
         // (dedup-guarded: same capsule id + 'send_capsule' won't fire twice)
         if (currentUserId && savedCapsuleId) {
           awardCapsuleSent(currentUserId, savedCapsuleId).catch((e) =>
-            console.warn("[WorldTree] awardCapsuleSent failed silently:", e)
+            logger.warn("[WorldTree] awardCapsuleSent failed silently:", e)
           );
           // 📝 Activity feed — log only, no growth side-effects of its own.
           // sendMessage() above already succeeded, so the capsule was
           // genuinely sent before this fires.
           logCapsuleSent(currentUserId, accountUsername, 150).catch((e) =>
-            console.warn("[WorldTreeActivity] logCapsuleSent failed silently:", e)
+            logger.warn("[WorldTreeActivity] logCapsuleSent failed silently:", e)
           );
         }
 
@@ -815,7 +803,7 @@ function CreateCapsule() {
           `${senderName} sent you a time capsule`
         );
       } catch (msgErr) {
-        console.error("Error sending capsule message:", msgErr);
+        logger.error("Error sending capsule message:", msgErr);
       }
     };
 
@@ -827,12 +815,12 @@ function CreateCapsule() {
       // 🌳 World Tree — +150 for sharing via WhatsApp (counts as a send)
       if (currentUserId && savedCapsuleId) {
         awardCapsuleSent(currentUserId, savedCapsuleId).catch((e) =>
-          console.warn("[WorldTree] awardCapsuleSent (whatsapp) failed silently:", e)
+          logger.warn("[WorldTree] awardCapsuleSent (whatsapp) failed silently:", e)
         );
         // 📝 Activity feed — fires only after the WhatsApp share action above
         // has already happened (waWindow was opened).
         logCapsuleSent(currentUserId, accountUsername, 150).catch((e) =>
-          console.warn("[WorldTreeActivity] logCapsuleSent (whatsapp) failed silently:", e)
+          logger.warn("[WorldTreeActivity] logCapsuleSent (whatsapp) failed silently:", e)
         );
       }
 
@@ -872,12 +860,12 @@ function CreateCapsule() {
       // 🌳 World Tree — +150 for sharing via Instagram (counts as a send)
       if (currentUserId && savedCapsuleId) {
         awardCapsuleSent(currentUserId, savedCapsuleId).catch((e) =>
-          console.warn("[WorldTree] awardCapsuleSent (instagram) failed silently:", e)
+          logger.warn("[WorldTree] awardCapsuleSent (instagram) failed silently:", e)
         );
         // 📝 Activity feed — fires only after the capsule was already saved
         // and the Instagram share flow has been initiated.
         logCapsuleSent(currentUserId, accountUsername, 150).catch((e) =>
-          console.warn("[WorldTreeActivity] logCapsuleSent (instagram) failed silently:", e)
+          logger.warn("[WorldTreeActivity] logCapsuleSent (instagram) failed silently:", e)
         );
       }
       setIgCapsuleUrl(capsuleUrl);

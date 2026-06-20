@@ -3,6 +3,7 @@ import { useAuth } from "./AuthContext";
 import { getPetProfile, createPetProfile, updatePetProfile } from "../services/petService";
 import { supabase } from "../services/supabase";
 import { playSound } from "../utils/sounds";
+import { logger } from "../utils/logger";
 
 /* ══════════════════════════════════════════
    PetContext — drives Lumi's reactive events + mood system
@@ -310,7 +311,7 @@ export function PetProvider({ children }) {
         JSON.stringify(cooldownsRef.current),
       );
     } catch (err) {
-      console.error("Failed to save cooldowns", err);
+      logger.error("Failed to save cooldowns", err);
     }
   }, [user]);
 
@@ -320,7 +321,7 @@ export function PetProvider({ children }) {
    */
   const startCooldown = useCallback((itemId, durationMinutes) => {
     if (!itemId || typeof durationMinutes !== "number" || durationMinutes <= 0) {
-      console.warn(
+      logger.warn(
         `[PetContext] startCooldown expects (itemId, positiveDurationMinutes), got: (${itemId}, ${durationMinutes})`,
       );
       return;
@@ -397,22 +398,14 @@ export function PetProvider({ children }) {
     };
 
     (async () => {
-      console.log("[PET] user.id =", user?.id);
-
       const { data: sessionData } = await supabase.auth.getSession();
-
-      console.log(
-        "[PET] session exists?",
-        !!sessionData?.session,
-        sessionData?.session?.user?.id
-      );
 
       const { data, error } = await getPetProfile(user.id);
 
       if (cancelled) return;
 
       if (error) {
-        console.error("[PetContext] Failed to load pet profile from Supabase, using localStorage fallback.", error);
+        logger.error("[PetContext] Failed to load pet profile from Supabase, using localStorage fallback.", error);
         // Don't mark as loaded for this user — we'll retry on next mount/user change,
         // and in the meantime the sync effect stays disabled so we don't clobber
         // a row we couldn't read.
@@ -442,7 +435,7 @@ export function PetProvider({ children }) {
         if (cancelled) return;
 
         if (createError) {
-          console.error("[PetContext] Failed to create pet profile in Supabase, using localStorage fallback.", createError);
+          logger.error("[PetContext] Failed to create pet profile in Supabase, using localStorage fallback.", createError);
           return;
         }
 
@@ -454,11 +447,11 @@ export function PetProvider({ children }) {
         try {
           localStorage.setItem(MIGRATION_COMPLETE_KEY, "true");
         } catch {
-          console.warn("[PetContext] Could not persist migration-complete flag.");
+          logger.warn("[PetContext] Could not persist migration-complete flag.");
         }
 
         setPetDataMigrated(true);
-        console.info("[PetContext] Migrated local pet data to new Supabase profile for user", user.id);
+        logger.debug("[PetContext] Migrated local pet data to new Supabase profile for user", user.id);
       } else {
         applyProfile(data);
       }
@@ -482,7 +475,7 @@ export function PetProvider({ children }) {
     try {
       localStorage.setItem(XP_STORAGE_KEY, String(petXP));
     } catch {
-      console.warn("[PetContext] Could not save XP to localStorage.");
+      logger.warn("[PetContext] Could not save XP to localStorage.");
     }
   }, [petXP]);
 
@@ -490,7 +483,7 @@ export function PetProvider({ children }) {
     try {
       localStorage.setItem(HAPPINESS_STORAGE_KEY, String(happiness));
     } catch {
-      console.warn("[PetContext] Could not save happiness to localStorage.");
+      logger.warn("[PetContext] Could not save happiness to localStorage.");
     }
   }, [happiness]);
 
@@ -498,7 +491,7 @@ export function PetProvider({ children }) {
     try {
       localStorage.setItem(MOOD_STORAGE_KEY, mood);
     } catch {
-      console.warn("[PetContext] Could not save mood to localStorage.");
+      logger.warn("[PetContext] Could not save mood to localStorage.");
     }
   }, [mood]);
 
@@ -506,7 +499,7 @@ export function PetProvider({ children }) {
     try {
       localStorage.setItem(FEED_COUNT_STORAGE_KEY, String(feedCount));
     } catch {
-      console.warn("[PetContext] Could not save feed count to localStorage.");
+      logger.warn("[PetContext] Could not save feed count to localStorage.");
     }
   }, [feedCount]);
 
@@ -514,7 +507,7 @@ export function PetProvider({ children }) {
     try {
       localStorage.setItem(GIFT_COUNT_STORAGE_KEY, String(giftCount));
     } catch {
-      console.warn("[PetContext] Could not save gift count to localStorage.");
+      logger.warn("[PetContext] Could not save gift count to localStorage.");
     }
   }, [giftCount]);
 
@@ -522,7 +515,7 @@ export function PetProvider({ children }) {
     try {
       localStorage.setItem(INTERACTION_COUNT_STORAGE_KEY, String(interactionCount));
     } catch {
-      console.warn("[PetContext] Could not save interaction count to localStorage.");
+      logger.warn("[PetContext] Could not save interaction count to localStorage.");
     }
   }, [interactionCount]);
 
@@ -549,7 +542,7 @@ export function PetProvider({ children }) {
         interaction_count: interactionCount,
       }).then(({ error }) => {
         if (error) {
-          console.error("[PetContext] Failed to sync pet profile to Supabase.", error);
+          logger.error("[PetContext] Failed to sync pet profile to Supabase.", error);
         }
       });
     }, 800);
@@ -567,7 +560,7 @@ export function PetProvider({ children }) {
 
   const addXP = useCallback((amount) => {
     if (typeof amount !== "number" || amount <= 0) {
-      console.warn(`[PetContext] addXP expects a positive number, got: ${amount}`);
+      logger.warn(`[PetContext] addXP expects a positive number, got: ${amount}`);
       return;
     }
     setPetXP((prev) => {
@@ -592,7 +585,7 @@ export function PetProvider({ children }) {
                 JSON.stringify([...seenLevelsRef.current]),
               );
             } catch {
-              console.warn("[PetContext] Could not persist seen levels.");
+              logger.warn("[PetContext] Could not persist seen levels.");
             }
             // Schedule outside the setState updater to avoid React warnings
             setTimeout(() => setLevelUpReward({ level: lv }), 0);
@@ -612,7 +605,7 @@ export function PetProvider({ children }) {
   ───────────────────────────────────────── */
   const adjustHappiness = useCallback((delta) => {
     if (typeof delta !== "number") {
-      console.warn(`[PetContext] adjustHappiness expects a number, got: ${delta}`);
+      logger.warn(`[PetContext] adjustHappiness expects a number, got: ${delta}`);
       return;
     }
     setHappiness((prev) => Math.max(0, Math.min(100, prev + delta)));
@@ -633,7 +626,7 @@ export function PetProvider({ children }) {
   const triggerPetEvent = useCallback((type) => {
     const config = PET_EVENTS[type];
     if (!config) {
-      console.warn(`[PetContext] Unknown pet event: "${type}"`);
+      logger.warn(`[PetContext] Unknown pet event: "${type}"`);
       return;
     }
     eventIdRef.current += 1;
@@ -651,7 +644,7 @@ export function PetProvider({ children }) {
   ───────────────────────────────────────── */
   const setMoodForPage = useCallback((newMood) => {
     if (!MOODS[newMood]) {
-      console.warn(`[PetContext] Unknown mood: "${newMood}"`);
+      logger.warn(`[PetContext] Unknown mood: "${newMood}"`);
       return;
     }
     // Don't override an active celebration
@@ -710,7 +703,7 @@ export function PetProvider({ children }) {
         }),
       );
     } catch {
-      console.warn("[PetContext] Could not persist unlock reward event.");
+      logger.warn("[PetContext] Could not persist unlock reward event.");
     }
 
     // Grant the XP and fire the pet event
