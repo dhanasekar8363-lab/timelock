@@ -17,7 +17,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase, getUnreadNotificationCount } from "../services/supabase";
-import { useAuth } from "../context/AuthContext"; // adjust path to match your project structure
+import { useAuth } from "../contexts/AuthContext"; // adjust path to match your project structure
 
 export function useNotifications() {
   const { user, loading: authLoading } = useAuth();
